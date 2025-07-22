@@ -6,10 +6,64 @@ from PyQt5.QtWidgets import (
     QPushButton, QLabel, QComboBox, QMessageBox
 )
 from PyQt5.QtGui import QIcon
-from PyQt5.QtCore import QSize
+from PyQt5.QtCore import QSize, Qt
+
+from io import BytesIO
+
+from PIL import ImageQt
+from PyQt5.QtWidgets import QLabel, QDialog, QDialogButtonBox, QFileDialog, QPushButton
+from PyQt5.QtGui import QPixmap, QClipboard
+from PyQt5.QtWidgets import QVBoxLayout
+
 
 from snip_modes.rectangle_snip import RectangleSnipOverlay
 
+class ImagePreviewDialog(QDialog):
+    def __init__(self, image, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Preview Snip")
+        self.setFixedSize(500, 400)
+        self.image = image  # PIL Image
+
+        layout = QVBoxLayout()
+
+        # Convert PIL image to QPixmap using BytesIO
+        label = QLabel()
+        buffer = BytesIO()
+        self.image.save(buffer, format='PNG')
+        pixmap = QPixmap()
+        pixmap.loadFromData(buffer.getvalue())
+
+        label.setPixmap(pixmap.scaled(480, 320, Qt.KeepAspectRatio))
+        layout.addWidget(label)
+
+        # Buttons: Save | Cancel | Copy
+        buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        copy_btn = QPushButton("📋 Copy")
+        buttons.addButton(copy_btn, QDialogButtonBox.ActionRole)
+
+        buttons.accepted.connect(self.save_image)
+        buttons.rejected.connect(self.reject)
+        copy_btn.clicked.connect(self.copy_to_clipboard)
+
+        layout.addWidget(buttons)
+        self.setLayout(layout)
+
+    def save_image(self):
+        path, _ = QFileDialog.getSaveFileName(self, "Save Screenshot", "", "PNG Files (*.png)")
+        if path:
+            self.image.save(path)
+        self.accept()
+
+    def copy_to_clipboard(self):
+        # Copy to clipboard using QPixmap
+        buffer = BytesIO()
+        self.image.save(buffer, format='PNG')
+        pixmap = QPixmap()
+        pixmap.loadFromData(buffer.getvalue())
+
+        clipboard = QApplication.clipboard()
+        clipboard.setPixmap(pixmap)
 
 class SnippingToolGUI(QMainWindow):
     def __init__(self):
@@ -60,9 +114,16 @@ class SnippingToolGUI(QMainWindow):
 
         if mode == "Rectangle":
             self.rect_snip = RectangleSnipOverlay(delay)
+            self.rect_snip.snip_completed.connect(self.show_preview)
         else:
             QMessageBox.information(self, "Coming Soon", f"{mode} is not implemented yet.")
             self.show()
+
+    def show_preview(self, image):
+        preview = ImagePreviewDialog(image, self)
+        preview.exec_()
+        self.show()
+
 
 
 if __name__ == '__main__':
@@ -70,3 +131,6 @@ if __name__ == '__main__':
     win = SnippingToolGUI()
     win.show()
     sys.exit(app.exec_())
+
+
+
