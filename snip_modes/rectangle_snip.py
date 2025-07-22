@@ -1,38 +1,31 @@
-import sys
+# snip_modes/rectangle_snip.py
+
 import pyautogui
-from PyQt5.QtCore import Qt, QRect, QPoint
+from PyQt5.QtCore import Qt, QRect, QPoint, QTimer
 from PyQt5.QtGui import QPainter, QColor, QPen
 from PyQt5.QtWidgets import QApplication, QWidget, QFileDialog
 
-QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
-QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
 
-class SnippingWidget(QWidget):
-    def __init__(self):
+class RectangleSnipOverlay(QWidget):
+    def __init__(self, delay=0):
         super().__init__()
-
-        self.setWindowFlags(
-            Qt.FramelessWindowHint |
-            Qt.WindowStaysOnTopHint |
-            Qt.X11BypassWindowManagerHint  
-        )
+        self.delay = delay
+        self.begin = QPoint()
+        self.end = QPoint()
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
         self.setAttribute(Qt.WA_NoSystemBackground, True)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setMouseTracking(True)
-
-        self.begin = QPoint()
-        self.end = QPoint()
         self.setCursor(Qt.CrossCursor)
-        self.showFullScreen()
 
-        print("snipping tool active")
+        if self.delay > 0:
+            QTimer.singleShot(self.delay * 1000, self.showFullScreen)
+        else:
+            self.showFullScreen()
 
     def paintEvent(self, event):
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-
         painter.fillRect(self.rect(), QColor(0, 0, 0, 100))
-
         if not self.begin.isNull() and not self.end.isNull():
             pen = QPen(QColor(255, 0, 0), 2)
             painter.setPen(pen)
@@ -58,22 +51,11 @@ class SnippingWidget(QWidget):
         y1 = int(min(self.begin.y(), self.end.y()) * scale)
         x2 = int(max(self.begin.x(), self.end.x()) * scale)
         y2 = int(max(self.begin.y(), self.end.y()) * scale)
-        
-        width = x2 - x1
-        height = y2 - y1
-
-        print(f"Captured region: ({x1}, {y1}, {width}x{height})")
+        width, height = x2 - x1, y2 - y1
 
         if width > 0 and height > 0:
             screenshot = pyautogui.screenshot(region=(x1, y1, width, height))
-            file_path, _ = QFileDialog.getSaveFileName(self, "Save Screenshot", "", "PNG Files (*.png);;All Files (*)")
+            file_path, _ = QFileDialog.getSaveFileName(self, "Save Screenshot", "", "PNG Files (*.png)")
             if file_path:
                 screenshot.save(file_path)
-
         QApplication.quit()
-
-
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    snip = SnippingWidget()
-    sys.exit(app.exec_())
