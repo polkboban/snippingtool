@@ -2,40 +2,56 @@
 
 import sys
 from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout,
-    QLabel, QPushButton, QComboBox
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QPushButton, QLabel, QComboBox, QMessageBox
 )
+from PyQt5.QtGui import QIcon
+from PyQt5.QtCore import QSize
+
 from snip_modes.rectangle_snip import RectangleSnipOverlay
 
 
-class SnippingToolLauncher(QMainWindow):
+class SnippingToolGUI(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Snipping Tool Clone")
-        self.setFixedSize(300, 200)
+        self.setFixedSize(400, 200)
 
-        layout = QVBoxLayout()
+        # Layouts
+        main_widget = QWidget()
+        main_layout = QVBoxLayout()
+        toolbar_layout = QHBoxLayout()
 
-        self.mode_label = QLabel("Snip Mode:")
+        # --- Toolbar buttons ---
+        # New Snip
+        self.new_btn = QPushButton("🆕  New")
+        self.new_btn.clicked.connect(self.start_snip)
+        self.new_btn.setFixedHeight(40)
+
+        # Mode
+        self.mode_label = QLabel("Mode:")
         self.mode_dropdown = QComboBox()
-        self.mode_dropdown.addItems(["Rectangle", "Free-form (coming soon)"])
+        self.mode_dropdown.addItems(["Rectangle", "Free-form (coming soon)", "Fullscreen (coming soon)"])
 
-        self.delay_label = QLabel("Delay (seconds):")
+        # Delay
+        self.delay_label = QLabel("Delay:")
         self.delay_dropdown = QComboBox()
         self.delay_dropdown.addItems(["0", "3", "5"])
 
-        self.start_btn = QPushButton("Start Snip")
-        self.start_btn.clicked.connect(self.start_snip)
+        # Add to toolbar layout
+        toolbar_layout.addWidget(self.new_btn)
+        toolbar_layout.addSpacing(20)
+        toolbar_layout.addWidget(self.mode_label)
+        toolbar_layout.addWidget(self.mode_dropdown)
+        toolbar_layout.addSpacing(20)
+        toolbar_layout.addWidget(self.delay_label)
+        toolbar_layout.addWidget(self.delay_dropdown)
 
-        layout.addWidget(self.mode_label)
-        layout.addWidget(self.mode_dropdown)
-        layout.addWidget(self.delay_label)
-        layout.addWidget(self.delay_dropdown)
-        layout.addWidget(self.start_btn)
-
-        container = QWidget()
-        container.setLayout(layout)
-        self.setCentralWidget(container)
+        # Assemble UI
+        main_layout.addLayout(toolbar_layout)
+        main_layout.addStretch()
+        main_widget.setLayout(main_layout)
+        self.setCentralWidget(main_widget)
 
     def start_snip(self):
         mode = self.mode_dropdown.currentText()
@@ -44,14 +60,13 @@ class SnippingToolLauncher(QMainWindow):
 
         if mode == "Rectangle":
             self.rect_snip = RectangleSnipOverlay(delay)
-        elif mode == "Free-form (coming soon)":
-            print("Free-form snip not implemented yet")
         else:
-            print("Unknown mode")
+            QMessageBox.information(self, "Coming Soon", f"{mode} is not implemented yet.")
+            self.show()
 
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    window = SnippingToolLauncher()
-    window.show()
+    win = SnippingToolGUI()
+    win.show()
     sys.exit(app.exec_())

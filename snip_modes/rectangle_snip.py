@@ -1,12 +1,14 @@
 # snip_modes/rectangle_snip.py
 
 import pyautogui
-from PyQt5.QtCore import Qt, QRect, QPoint, QTimer
+from PyQt5.QtCore import Qt, QRect, QPoint, QTimer,pyqtSignal
 from PyQt5.QtGui import QPainter, QColor, QPen
 from PyQt5.QtWidgets import QApplication, QWidget, QFileDialog
 
 
 class RectangleSnipOverlay(QWidget):
+    snip_completed = pyqtSignal(object)
+
     def __init__(self, delay=0):
         super().__init__()
         self.delay = delay
@@ -55,7 +57,5 @@ class RectangleSnipOverlay(QWidget):
 
         if width > 0 and height > 0:
             screenshot = pyautogui.screenshot(region=(x1, y1, width, height))
-            file_path, _ = QFileDialog.getSaveFileName(self, "Save Screenshot", "", "PNG Files (*.png)")
-            if file_path:
-                screenshot.save(file_path)
-        QApplication.quit()
+            self.snip_completed.emit(screenshot)
+        self.close()
