@@ -4,7 +4,6 @@ from PyQt5.QtCore import Qt, QRect, QPoint
 from PyQt5.QtGui import QPainter, QColor, QPen
 from PyQt5.QtWidgets import QApplication, QWidget, QFileDialog
 
-# Enable DPI scaling
 QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
 QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
 
@@ -15,7 +14,7 @@ class SnippingWidget(QWidget):
         self.setWindowFlags(
             Qt.FramelessWindowHint |
             Qt.WindowStaysOnTopHint |
-            Qt.X11BypassWindowManagerHint  # Helps on some Windows setups
+            Qt.X11BypassWindowManagerHint  
         )
         self.setAttribute(Qt.WA_NoSystemBackground, True)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
@@ -26,13 +25,12 @@ class SnippingWidget(QWidget):
         self.setCursor(Qt.CrossCursor)
         self.showFullScreen()
 
-        print("Snipping Tool active — click and drag to select an area.")
+        print("snipping tool active: click and drag to select area.")
 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
 
-        # Force dark transparent overlay
         painter.fillRect(self.rect(), QColor(0, 0, 0, 100))
 
         if not self.begin.isNull() and not self.end.isNull():
@@ -55,7 +53,6 @@ class SnippingWidget(QWidget):
         self.end = event.pos()
         self.hide()
 
-        # Handle DPI scaling
         scale = self.devicePixelRatioF()
         x1 = int(min(self.begin.x(), self.end.x()) * scale)
         y1 = int(min(self.begin.y(), self.end.y()) * scale)
