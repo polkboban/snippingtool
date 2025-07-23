@@ -38,13 +38,17 @@ class FreeformSnipOverlay(QWidget):
         painter.drawPath(self.path)
 
     def mousePressEvent(self, event):
+        self.path = QPainterPath()
         self.path.moveTo(event.pos())
+        self.drawing = True
 
     def mouseMoveEvent(self, event):
-        self.path.lineTo(event.pos())
-        self.update()
+        if hasattr(self, 'drawing') and self.drawing:
+            self.path.lineTo(event.pos())
+            self.update()
 
     def mouseReleaseEvent(self, event):
+        self.drawing = False
         self.hide()
         self.capture_freeform_area()
         self.close()
@@ -53,11 +57,9 @@ class FreeformSnipOverlay(QWidget):
         if self.fullscreen_image is None:
             return
 
-        # Convert to mask
         screen = self.fullscreen_image
         width, height = screen.size
 
-        # Draw the path onto a mask
         mask = Image.new("L", (width, height), 0)
         draw = ImageDraw.Draw(mask)
 
@@ -69,7 +71,6 @@ class FreeformSnipOverlay(QWidget):
         if len(points) > 1:
             draw.polygon(points, fill=255)
 
-            # Apply mask to the screenshot
             result = Image.new("RGBA", screen.size)
             result.paste(screen, (0, 0), mask)
 
