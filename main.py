@@ -17,17 +17,17 @@ from PyQt5.QtWidgets import QVBoxLayout
 
 
 from snip_modes.rectangle_snip import RectangleSnipOverlay
+from snip_modes.freeform_snip import FreeformSnipOverlay
 
 class ImagePreviewDialog(QDialog):
     def __init__(self, image, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Preview Snip")
         self.setFixedSize(500, 400)
-        self.image = image  # PIL Image
+        self.image = image  
 
         layout = QVBoxLayout()
 
-        # Convert PIL image to QPixmap using BytesIO
         label = QLabel()
         buffer = BytesIO()
         self.image.save(buffer, format='PNG')
@@ -115,6 +115,9 @@ class SnippingToolGUI(QMainWindow):
         if mode == "Rectangle":
             self.rect_snip = RectangleSnipOverlay(delay)
             self.rect_snip.snip_completed.connect(self.show_preview)
+        elif mode.startswith("Free-form"):
+            self.freeform_snip = FreeformSnipOverlay(delay)
+            self.freeform_snip.snip_completed.connect(self.show_preview)
         else:
             QMessageBox.information(self, "Coming Soon", f"{mode} is not implemented yet.")
             self.show()
