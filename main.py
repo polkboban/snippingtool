@@ -1,6 +1,8 @@
 # main.py
 
 import sys
+import platform
+import winreg
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QComboBox, QMessageBox
@@ -18,6 +20,18 @@ from PyQt5.QtWidgets import QVBoxLayout
 
 from snip_modes.rectangle_snip import RectangleSnipOverlay
 from snip_modes.freeform_snip import FreeformSnipOverlay
+
+def is_dark_mode():
+    if platform.system() == "Windows":
+        try:
+            reg = winreg.ConnectRegistry(None, winreg.HKEY_CURRENT_USER)
+            key = winreg.OpenKey(reg, r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize")
+            value, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
+            return value == 0
+        except Exception as e:
+            print(f"Error checking dark mode: {e}")
+            return False
+    return False
 
 class ImagePreviewDialog(QDialog):
     def __init__(self, image, parent=None):
@@ -69,7 +83,8 @@ class SnippingToolGUI(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Snipping Tool Clone")
-        self.setFixedSize(400, 200)
+        self.resize(400,200)
+        self.setMinimumSize(400,120)
 
         # Layouts
         main_widget = QWidget()
@@ -131,6 +146,36 @@ class SnippingToolGUI(QMainWindow):
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
+
+    if is_dark_mode():
+        app.setStyleSheet("""
+            QWidget {
+                background-color: #1e1e1e;
+                color: #e0e0e0;
+                font-size: 13px;
+            }
+            QPushButton {
+                background-color: #2d2d2d;
+                border: 1px solid #444;
+                padding: 6px 12px;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #3a3a3a;
+            }
+            QComboBox {
+                background-color: #2d2d2d;
+                border: 1px solid #555;
+                padding: 4px;
+                color: #e0e0e0;
+            }
+            QComboBox::drop-down {
+                border: none;
+            }
+            QLabel {
+                font-weight: 500;
+            }
+        """)
     win = SnippingToolGUI()
     win.show()
     sys.exit(app.exec_())
