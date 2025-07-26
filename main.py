@@ -3,12 +3,13 @@
 import sys
 import platform
 import winreg
+import pyautogui
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QComboBox, QMessageBox
 )
 from PyQt5.QtGui import QIcon
-from PyQt5.QtCore import QSize, Qt
+from PyQt5.QtCore import QSize, Qt, QTimer
 
 from io import BytesIO
 
@@ -37,7 +38,8 @@ class ImagePreviewDialog(QDialog):
     def __init__(self, image, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Preview Snip")
-        self.setFixedSize(500, 400)
+        self.resize(500,480)
+        self.setMinimumSize(400,320)
         self.image = image  
 
         layout = QVBoxLayout()
@@ -51,9 +53,8 @@ class ImagePreviewDialog(QDialog):
         label.setPixmap(pixmap.scaled(480, 320, Qt.KeepAspectRatio))
         layout.addWidget(label)
 
-        # Buttons: Save | Cancel | Copy
         buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
-        copy_btn = QPushButton("📋 Copy")
+        copy_btn = QPushButton("Copy")
         buttons.addButton(copy_btn, QDialogButtonBox.ActionRole)
 
         buttons.accepted.connect(self.save_image)
@@ -70,7 +71,6 @@ class ImagePreviewDialog(QDialog):
         self.accept()
 
     def copy_to_clipboard(self):
-        # Copy to clipboard using QPixmap
         buffer = BytesIO()
         self.image.save(buffer, format='PNG')
         pixmap = QPixmap()
@@ -83,31 +83,26 @@ class SnippingToolGUI(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Snipping Tool Clone")
-        self.resize(400,200)
+        self.resize(500,180)
         self.setMinimumSize(400,120)
 
-        # Layouts
         main_widget = QWidget()
         main_layout = QVBoxLayout()
         toolbar_layout = QHBoxLayout()
 
-        # --- Toolbar buttons ---
-        # New Snip
-        self.new_btn = QPushButton("🆕  New")
+        #buttons
+        self.new_btn = QPushButton("New")
         self.new_btn.clicked.connect(self.start_snip)
         self.new_btn.setFixedHeight(40)
 
-        # Mode
         self.mode_label = QLabel("Mode:")
         self.mode_dropdown = QComboBox()
-        self.mode_dropdown.addItems(["Rectangle", "Free-form (coming soon)", "Fullscreen (coming soon)"])
+        self.mode_dropdown.addItems(["Rectangle", "Free-form", "Fullscreen"])
 
-        # Delay
         self.delay_label = QLabel("Delay:")
         self.delay_dropdown = QComboBox()
         self.delay_dropdown.addItems(["0", "3", "5"])
 
-        # Add to toolbar layout
         toolbar_layout.addWidget(self.new_btn)
         toolbar_layout.addSpacing(20)
         toolbar_layout.addWidget(self.mode_label)
@@ -116,7 +111,6 @@ class SnippingToolGUI(QMainWindow):
         toolbar_layout.addWidget(self.delay_label)
         toolbar_layout.addWidget(self.delay_dropdown)
 
-        # Assemble UI
         main_layout.addLayout(toolbar_layout)
         main_layout.addStretch()
         main_widget.setLayout(main_layout)
@@ -133,9 +127,15 @@ class SnippingToolGUI(QMainWindow):
         elif mode.startswith("Free-form"):
             self.freeform_snip = FreeformSnipOverlay(delay)
             self.freeform_snip.snip_completed.connect(self.show_preview)
+        elif mode == "Fullscreen":
+            QTimer.singleShot(delay * 1000, self.capture_fullscreen)
         else:
             QMessageBox.information(self, "Coming Soon", f"{mode} is not implemented yet.")
             self.show()
+
+    def capture_fullscreen(self):
+        screenshot = pyautogui.screenshot()
+        self.show_preview(screenshot)
 
     def show_preview(self, image):
         preview = ImagePreviewDialog(image, self)
