@@ -1,4 +1,4 @@
-# snip_modes/freeform_snip.py
+#freeformsnip
 
 import pyautogui
 from PyQt5.QtCore import Qt, QPoint, pyqtSignal, QTimer

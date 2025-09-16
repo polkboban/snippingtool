@@ -1,4 +1,4 @@
-# snip_modes/rectangle_snip.py
+#rectanglesnip
 
 import pyautogui
 from PyQt5.QtCore import Qt, QRect, QPoint, QTimer,pyqtSignal
