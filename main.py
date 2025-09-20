@@ -211,35 +211,34 @@ class SnippingToolGUI(CustomTitleBarWindow):
         main_layout.setContentsMargins(12, 8, 12, 12)
         main_layout.setSpacing(10)
         
-        # --- Toolbar ---
         toolbar = QWidget()
         toolbar_layout = QHBoxLayout(toolbar)
         toolbar_layout.setContentsMargins(0, 0, 0, 0)
         toolbar_layout.setSpacing(8)
 
-        self.new_btn = QPushButton(" New") # Removed the "+" from the text
+        self.new_btn = QPushButton(" New")
         self.new_btn.setObjectName("newButton")
         self.new_btn.clicked.connect(self.start_snip)
         self.new_btn.setFixedHeight(36)
         
         self.new_btn.setIcon(create_svg_icon("plus", self.icon_color))
-        self.new_btn.setIconSize(QSize(20, 20)) # Adjust size as needed
+        self.new_btn.setIconSize(QSize(20, 20))
 
-        # Mode Button
+        
         self.mode_btn = QPushButton()
         self.mode_btn.setObjectName("toolbarButton")
         self.mode_btn.setFixedHeight(36)
         self.mode_btn.clicked.connect(self.show_mode_menu)
         self.update_mode_button()
 
-        # Delay Button
+        
         self.delay_btn = QPushButton()
         self.delay_btn.setObjectName("toolbarButton")
         self.delay_btn.setFixedHeight(36)
         self.delay_btn.clicked.connect(self.show_delay_menu)
         self.update_delay_button()
 
-        # Options Button
+      
         self.more_btn = QPushButton("...")
         self.more_btn.setObjectName("toolbarButton")
         self.more_btn.setFixedSize(36, 36)
@@ -250,7 +249,7 @@ class SnippingToolGUI(CustomTitleBarWindow):
         toolbar_layout.addStretch()
         toolbar_layout.addWidget(self.more_btn)
 
-        # --- Central Placeholder ---
+        
         placeholder = QFrame()
         placeholder.setObjectName("placeholderFrame")
         placeholder_layout = QVBoxLayout(placeholder)
@@ -261,7 +260,6 @@ class SnippingToolGUI(CustomTitleBarWindow):
         placeholder_label.setObjectName("placeholderLabel")
         placeholder_layout.addWidget(placeholder_label)
 
-        # --- Layout ---
         main_layout.addWidget(toolbar)
         main_layout.addWidget(placeholder, 1)
 
