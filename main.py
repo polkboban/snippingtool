@@ -4,15 +4,14 @@ import winreg
 import pyautogui
 from io import BytesIO
 
+from PyQt5.QtSvg import QSvgRenderer
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QMenu, QAction, QMessageBox, QDialog,
-    QDialogButtonBox, QFileDialog, QGraphicsDropShadowEffect, QFrame
+    QDialogButtonBox, QFileDialog, QGraphicsDropShadowEffect, QFrame, QSizeGrip
 )
 from PyQt5.QtGui import QPixmap, QColor, QFont, QIcon, QPainter
 from PyQt5.QtCore import Qt, QTimer, QSize, QByteArray, pyqtSignal
-from PyQt5.QtSvg import QSvgRenderer
-
 
 from snip_modes.rectangle_snip import RectangleSnipOverlay
 from snip_modes.freeform_snip import FreeformSnipOverlay
@@ -25,10 +24,8 @@ class WindowSnipOverlay(QWidget):
 
     def show_message(self):
         QMessageBox.information(None, "Not Implemented", "Window mode is not yet implemented.")
-        self.snip_completed.emit(None) # Emit None so the main window reappears
+        self.snip_completed.emit(None)
         self.close()
-
-
 
 SVG_ICONS = {
     "plus": """<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>""",
@@ -40,7 +37,6 @@ SVG_ICONS = {
 }
 
 def create_svg_icon(name, color):
-    """Creates a QIcon from embedded SVG data, with a specified color."""
     svg_data = SVG_ICONS[name].format(color=color)
     renderer = QSvgRenderer(QByteArray(svg_data.encode('utf-8')))
     pixmap = QPixmap(renderer.defaultSize())
@@ -50,7 +46,6 @@ def create_svg_icon(name, color):
     renderer.render(painter)
     painter.end()
     return QIcon(pixmap)
-
 
 def is_dark_mode():
     if platform.system() == "Windows":
@@ -65,16 +60,21 @@ def is_dark_mode():
             return False
     return False
 
-
 class CustomTitleBarWindow(QMainWindow):
     def __init__(self, dark_mode=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.Window)
         self.setAttribute(Qt.WA_TranslucentBackground)
 
+        self.main_wrapper = QWidget()
+        self.main_wrapper.setAttribute(Qt.WA_TranslucentBackground)
+        main_layout = QVBoxLayout(self.main_wrapper)
+        main_layout.setContentsMargins(35, 35, 35, 35)
+        self.setCentralWidget(self.main_wrapper)
+
         self.container = QWidget(self)
         self.container.setObjectName("mainContainer")
-        self.setCentralWidget(self.container)
+        main_layout.addWidget(self.container)
 
         shadow = QGraphicsDropShadowEffect(self)
         shadow.setBlurRadius(35)
@@ -90,6 +90,7 @@ class CustomTitleBarWindow(QMainWindow):
         self.title_bar = QWidget()
         self.title_bar.setObjectName("titleBar")
         self.title_bar.setFixedHeight(40)
+        self.title_bar.mouseDoubleClickEvent = self.toggle_maximize
         title_layout = QHBoxLayout(self.title_bar)
         title_layout.setContentsMargins(15, 0, 5, 0)
 
@@ -102,6 +103,11 @@ class CustomTitleBarWindow(QMainWindow):
         self.min_btn.setObjectName("titleButton")
         self.min_btn.clicked.connect(self.showMinimized)
         title_layout.addWidget(self.min_btn)
+        
+        self.max_btn = QPushButton("⬜")
+        self.max_btn.setObjectName("titleButton")
+        self.max_btn.clicked.connect(self.toggle_maximize)
+        title_layout.addWidget(self.max_btn)
 
         self.close_btn = QPushButton("✕")
         self.close_btn.setObjectName("titleButton")
@@ -113,9 +119,21 @@ class CustomTitleBarWindow(QMainWindow):
 
         self.content = QWidget()
         self.v_layout.addWidget(self.content)
+        
+        self.grip = QSizeGrip(self.container)
+        self.grip.setStyleSheet("background-color: transparent;")
+        self.v_layout.addWidget(self.grip, 0, Qt.AlignBottom | Qt.AlignRight)
+
+    def toggle_maximize(self, event=None):
+        if self.isMaximized():
+            self.showNormal()
+            self.main_wrapper.layout().setContentsMargins(35, 35, 35, 35)
+        else:
+            self.showMaximized()
+            self.main_wrapper.layout().setContentsMargins(0, 0, 0, 0)
 
     def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton and event.y() < self.title_bar.height():
+        if event.button() == Qt.LeftButton and event.y() < (self.title_bar.height() + 35):
             self._drag_pos = event.globalPos() - self.frameGeometry().topLeft()
             event.accept()
 
@@ -129,21 +147,20 @@ class CustomTitleBarWindow(QMainWindow):
         if hasattr(self, 'title_label'):
             self.title_label.setText(title)
 
-
 class ImagePreviewDialog(QDialog):
     def __init__(self, image, parent=None):
         super().__init__(parent)
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
         self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setMinimumSize(600, 420)
+        self.resize(800, 600) 
         self.image = image
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setContentsMargins(25, 25, 25, 25)
 
         wrapper = QWidget()
         wrapper.setObjectName("dialogContainer")
-
+        
         shadow = QGraphicsDropShadowEffect(self)
         shadow.setBlurRadius(25)
         shadow.setXOffset(0)
@@ -151,9 +168,10 @@ class ImagePreviewDialog(QDialog):
         shadow.setColor(QColor(0, 0, 0, 180))
         wrapper.setGraphicsEffect(shadow)
 
-        v = QVBoxLayout(wrapper)
-        label = QLabel("Loading preview...")
-        v.addWidget(label, 1, Qt.AlignCenter)
+        v_layout = QVBoxLayout(wrapper)
+        self.image_label = QLabel()
+        self.image_label.setAlignment(Qt.AlignCenter)
+        v_layout.addWidget(self.image_label, 1)
 
         buttons = QDialogButtonBox()
         self.save_btn = buttons.addButton("Save", QDialogButtonBox.AcceptRole)
@@ -164,15 +182,26 @@ class ImagePreviewDialog(QDialog):
         buttons.rejected.connect(self.reject)
         self.copy_btn.clicked.connect(self.copy_to_clipboard)
 
-        v.addWidget(buttons)
+        v_layout.addWidget(buttons)
         layout.addWidget(wrapper)
+        
+        self.grip = QSizeGrip(wrapper)
+        self.grip.setStyleSheet("margin: 5px;")
+        v_layout.addWidget(self.grip, 0, Qt.AlignBottom | Qt.AlignRight)
 
         buffer = BytesIO()
         self.image.save(buffer, format="PNG")
-        pixmap = QPixmap()
-        pixmap.loadFromData(buffer.getvalue())
-        label.setPixmap(pixmap.scaled(580, 360, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        self.base_pixmap = QPixmap()
+        self.base_pixmap.loadFromData(buffer.getvalue())
+        self.update_image_display()
 
+    def update_image_display(self):
+        scaled_pixmap = self.base_pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        self.image_label.setPixmap(scaled_pixmap)
+        
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.update_image_display()
 
     def save_image(self):
         path, _ = QFileDialog.getSaveFileName(self, "Save Screenshot", "", "PNG Files (*.png)")
@@ -188,7 +217,6 @@ class ImagePreviewDialog(QDialog):
         QApplication.clipboard().setPixmap(pixmap)
         self.accept()
 
-
 class SnippingToolGUI(CustomTitleBarWindow):
     def __init__(self, dark_mode=False):
         super().__init__(dark_mode=dark_mode)
@@ -196,9 +224,9 @@ class SnippingToolGUI(CustomTitleBarWindow):
         self.icon_color = "#ffffff" if dark_mode else "#000000"
 
         self.setWindowTitle("Snipping Tool")
-        self.setFixedSize(520, 200)
+        self.resize(620, 300)
+        self.setMinimumSize(520, 300)
 
-        # --- State ---
         self.snip_modes = ["Rectangle mode", "Free-form mode", "Window mode", "Fullscreen mode"]
         self.delays = ["No delay", "3 seconds", "5 seconds", "10 seconds"]
         self.current_mode = self.snip_modes[0]
@@ -208,7 +236,7 @@ class SnippingToolGUI(CustomTitleBarWindow):
 
     def setup_ui(self):
         main_layout = QVBoxLayout(self.content)
-        main_layout.setContentsMargins(12, 8, 12, 12)
+        main_layout.setContentsMargins(12, 8, 12, 0)
         main_layout.setSpacing(10)
         
         toolbar = QWidget()
@@ -223,22 +251,19 @@ class SnippingToolGUI(CustomTitleBarWindow):
         
         self.new_btn.setIcon(create_svg_icon("plus", self.icon_color))
         self.new_btn.setIconSize(QSize(20, 20))
-
         
         self.mode_btn = QPushButton()
         self.mode_btn.setObjectName("toolbarButton")
         self.mode_btn.setFixedHeight(36)
         self.mode_btn.clicked.connect(self.show_mode_menu)
         self.update_mode_button()
-
         
         self.delay_btn = QPushButton()
         self.delay_btn.setObjectName("toolbarButton")
         self.delay_btn.setFixedHeight(36)
         self.delay_btn.clicked.connect(self.show_delay_menu)
         self.update_delay_button()
-
-      
+        
         self.more_btn = QPushButton("...")
         self.more_btn.setObjectName("toolbarButton")
         self.more_btn.setFixedSize(36, 36)
@@ -248,14 +273,13 @@ class SnippingToolGUI(CustomTitleBarWindow):
         toolbar_layout.addWidget(self.delay_btn)
         toolbar_layout.addStretch()
         toolbar_layout.addWidget(self.more_btn)
-
         
         placeholder = QFrame()
         placeholder.setObjectName("placeholderFrame")
         placeholder_layout = QVBoxLayout(placeholder)
         placeholder_layout.setAlignment(Qt.AlignCenter)
         
-        placeholder_label = QLabel("Snip, mark up, and share")
+        placeholder_label = QLabel("Snip and share")
         placeholder_label.setAlignment(Qt.AlignCenter)
         placeholder_label.setObjectName("placeholderLabel")
         placeholder_layout.addWidget(placeholder_label)
@@ -344,7 +368,6 @@ class SnippingToolGUI(CustomTitleBarWindow):
             preview.exec_()
         self.show()
 
-
 DARK_THEME_STYLESHEET = """
 QWidget {
     color: #ffffff;
@@ -374,16 +397,17 @@ QWidget {
 }
 #titleButton:hover { background-color: #383838; }
 #closeButton:hover { background-color: #E81123; }
+#maxButton:hover { background-color: #383838; }
 
 #newButton {
-    background-color: #0078d4;
-    border: 1px solid #0078d4;
+    background-color: #D72828;
+    border: 1px solid #6B6B6B;
     border-radius: 4px;
     padding: 0px 16px;
     font-weight: 600;
 }
-#newButton:hover { background-color: #108ee9; }
-#newButton:pressed { background-color: #005a9e; }
+#newButton:hover { background-color: #FF1414; }
+#newButton:pressed { background-color: #FF0A0A; }
 
 #toolbarButton {
     background-color: #323232;
@@ -455,6 +479,7 @@ QWidget {
 }
 #titleButton:hover { background-color: #e0e0e0; }
 #closeButton:hover { background-color: #E81123; color: white; }
+#maxButton:hover { background-color: #e0e0e0; }
 
 #newButton {
     background-color: #0078d4;
@@ -507,7 +532,6 @@ QMenu::item:selected {
     background-color: #f0f0f0;
 }
 """
-
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
