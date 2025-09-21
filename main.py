@@ -15,22 +15,12 @@ from PyQt5.QtCore import Qt, QTimer, QSize, QByteArray, pyqtSignal
 
 from snip_modes.rectangle_snip import RectangleSnipOverlay
 from snip_modes.freeform_snip import FreeformSnipOverlay
-
-class WindowSnipOverlay(QWidget):
-    snip_completed = pyqtSignal(object)
-    def __init__(self, delay=0):
-        super().__init__()
-        QTimer.singleShot(100, self.show_message)
-
-    def show_message(self):
-        QMessageBox.information(None, "Not Implemented", "Window mode is not yet implemented.")
-        self.snip_completed.emit(None)
-        self.close()
+from snip_modes.window_snip import WindowSnipOverlay
 
 SVG_ICONS = {
     "plus": """<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>""",
     "rectangle": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="{color}" width="18px" height="18px"><path d="M2 4.5A2.5 2.5 0 0 1 4.5 2h15A2.5 2.5 0 0 1 22 4.5v15a2.5 2.5 0 0 1-2.5 2.5h-15A2.5 2.5 0 0 1 2 19.5v-15ZM4.5 3A1.5 1.5 0 0 0 3 4.5v15A1.5 1.5 0 0 0 4.5 21h15a1.5 1.5 0 0 0 1.5-1.5v-15A1.5 1.5 0 0 0 19.5 3h-15Z"/></svg>""",
-    "freeform": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="{color}" width="18px" height="18px"><path d="M19.64 3.36a1.5 1.5 0 0 1 .42 2.08l-2.73 6.83a.5.5 0 0 0 .94.38l2.73-6.83a2.5 2.5 0 0 0-3.46-3.46l-6.83 2.73a.5.5 0 0 0 .38.94l6.83-2.73a1.5 1.5 0 0 1 2.08.42ZM8.41 6.1a1.5 1.5 0 0 1 2.49-1.59l.34.21a.5.5 0 0 0 .6-.2l.21-.34a1.5 1.5 0 0 1 2.49 1.59l-4.5 7.19a1.5 1.5 0 0 1-2.48 0L3.6 8.39a1.5 1.5 0 0 1 2.1-2.12l2.7 2.83ZM3.9 7.7a.5.5 0 0 0-.7.71l3.96 4.57a.5.5 0 0 0 .83 0l4.5-7.19a.5.5 0 0 0-.83-.53l-4.14 6.62-3.62-4.18Z"/></svg>""",
+    "free-form": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="{color}" width="18px" height="18px"><path d="M19.64 3.36a1.5 1.5 0 0 1 .42 2.08l-2.73 6.83a.5.5 0 0 0 .94.38l2.73-6.83a2.5 2.5 0 0 0-3.46-3.46l-6.83 2.73a.5.5 0 0 0 .38.94l6.83-2.73a1.5 1.5 0 0 1 2.08.42ZM8.41 6.1a1.5 1.5 0 0 1 2.49-1.59l.34.21a.5.5 0 0 0 .6-.2l.21-.34a1.5 1.5 0 0 1 2.49 1.59l-4.5 7.19a1.5 1.5 0 0 1-2.48 0L3.6 8.39a1.5 1.5 0 0 1 2.1-2.12l2.7 2.83ZM3.9 7.7a.5.5 0 0 0-.7.71l3.96 4.57a.5.5 0 0 0 .83 0l4.5-7.19a.5.5 0 0 0-.83-.53l-4.14 6.62-3.62-4.18Z"/></svg>""",
     "window": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="{color}" width="18px" height="18px"><path d="M2 5.5A2.5 2.5 0 0 1 4.5 3h15A2.5 2.5 0 0 1 22 5.5v13a2.5 2.5 0 0 1-2.5 2.5h-15A2.5 2.5 0 0 1 2 18.5v-13ZM4.5 4A1.5 1.5 0 0 0 3 5.5v2A.5.5 0 0 0 3.5 8h17a.5.5 0 0 0 .5-.5v-2A1.5 1.5 0 0 0 19.5 4h-15ZM21 9H3v9.5A1.5 1.5 0 0 0 4.5 20h15a1.5 1.5 0 0 0 1.5-1.5V9Z"/></svg>""",
     "fullscreen": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="{color}" width="18px" height="18px"><path d="M2.5 3A.5.5 0 0 0 2 3.5v5a.5.5 0 0 0 1 0v-4h4a.5.5 0 0 0 0-1h-5ZM21.5 3a.5.5 0 0 0-.5.5v4a.5.5 0 0 0 1 0v-4h4a.5.5 0 0 0 0-1h-5ZM2.5 16a.5.5 0 0 0-.5.5v5a.5.5 0 0 0 .5.5h5a.5.5 0 0 0 0-1h-4v-4a.5.5 0 0 0-1 0ZM22 15.5a.5.5 0 0 0-1 0v4h-4a.5.5 0 0 0 0 1h5a.5.5 0 0 0 .5-.5v-5Z"/></svg>""",
     "delay": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="{color}" width="18px" height="18px"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm0 19a9 9 0 1 1 9-9 9 9 0 0 1-9 9Z"/><path d="M12 6a.5.5 0 0 0-.5.5v5.79l-3.65 2.1a.5.5 0 0 0 .5.86l4-2.31A.5.5 0 0 0 12.5 12V6.5A.5.5 0 0 0 12 6Z"/></svg>""",
@@ -215,7 +205,10 @@ class ImagePreviewDialog(QDialog):
         pixmap = QPixmap()
         pixmap.loadFromData(buffer.getvalue())
         QApplication.clipboard().setPixmap(pixmap)
-        self.accept()
+        
+        self.copy_btn.setText("Copied!")
+        self.copy_btn.setEnabled(False)
+        QTimer.singleShot(1200, self.accept)
 
 class SnippingToolGUI(CustomTitleBarWindow):
     def __init__(self, dark_mode=False):
@@ -304,7 +297,7 @@ class SnippingToolGUI(CustomTitleBarWindow):
         
         actions = {
             "Rectangle mode": "rectangle",
-            "Free-form mode": "freeform",
+            "Free-form mode": "free-form",
             "Window mode": "window",
             "Fullscreen mode": "fullscreen"
         }
