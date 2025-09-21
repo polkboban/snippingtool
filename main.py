@@ -94,7 +94,7 @@ class CustomTitleBarWindow(QMainWindow):
         self.min_btn.clicked.connect(self.showMinimized)
         title_layout.addWidget(self.min_btn)
         
-        self.max_btn = QPushButton("⬜")
+        self.max_btn = QPushButton("🗖")
         self.max_btn.setObjectName("titleButton")
         self.max_btn.clicked.connect(self.toggle_maximize)
         title_layout.addWidget(self.max_btn)
@@ -234,7 +234,7 @@ class SnippingToolGUI(CustomTitleBarWindow):
         
         toolbar = QWidget()
         toolbar_layout = QHBoxLayout(toolbar)
-        toolbar_layout.setContentsMargins(0, 0, 0, 0)
+        toolbar_layout.setContentsMargins(0, 0, 0, 4)
         toolbar_layout.setSpacing(8)
 
         self.new_btn = QPushButton(" New")
@@ -256,16 +256,11 @@ class SnippingToolGUI(CustomTitleBarWindow):
         self.delay_btn.setFixedHeight(36)
         self.delay_btn.clicked.connect(self.show_delay_menu)
         self.update_delay_button()
-        
-        self.more_btn = QPushButton("...")
-        self.more_btn.setObjectName("toolbarButton")
-        self.more_btn.setFixedSize(36, 36)
 
         toolbar_layout.addWidget(self.new_btn)
         toolbar_layout.addWidget(self.mode_btn)
         toolbar_layout.addWidget(self.delay_btn)
         toolbar_layout.addStretch()
-        toolbar_layout.addWidget(self.more_btn)
         
         placeholder = QFrame()
         placeholder.setObjectName("placeholderFrame")
@@ -527,6 +522,9 @@ QMenu::item:selected {
 """
 
 if __name__ == "__main__":
+    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
+
     app = QApplication(sys.argv)
     
     dark_mode = is_dark_mode()

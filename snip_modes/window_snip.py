@@ -1,16 +1,26 @@
+import sys
+import ctypes
 import win32gui
-from io import BytesIO
-from PIL import Image
+import pyautogui
 from PyQt5.QtWidgets import QWidget, QApplication
-from PyQt5.QtCore import Qt, pyqtSignal, QRect, QBuffer
+from PyQt5.QtCore import Qt, pyqtSignal, QRect
 from PyQt5.QtGui import QPainter, QPen, QColor, QCursor
 
-def get_top_level_hwnd(hwnd):
-    parent_hwnd = win32gui.GetParent(hwnd)
-    while parent_hwnd:
-        hwnd = parent_hwnd
-        parent_hwnd = win32gui.GetParent(hwnd)
-    return hwnd
+class RECT(ctypes.Structure):
+    _fields_ = [
+        ("left", ctypes.c_long),
+        ("top", ctypes.c_long),
+        ("right", ctypes.c_long),
+        ("bottom", ctypes.c_long),
+    ]
+
+def get_window_rect_dwm(hwnd):
+    rect = RECT()
+    DWMWA_EXTENDED_FRAME_BOUNDS = 9
+    ctypes.windll.dwmapi.DwmGetWindowAttribute(
+        hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, ctypes.byref(rect), ctypes.sizeof(rect)
+    )
+    return rect.left, rect.top, rect.right, rect.bottom
 
 class WindowSnipOverlay(QWidget):
     snip_completed = pyqtSignal(object)
@@ -32,22 +42,19 @@ class WindowSnipOverlay(QWidget):
         try:
             pos = QCursor.pos()
             hwnd = win32gui.WindowFromPoint((pos.x(), pos.y()))
-            
-            top_level_hwnd = get_top_level_hwnd(hwnd)
 
-            if top_level_hwnd != self.winId() and top_level_hwnd != 0:
-                rect = win32gui.GetWindowRect(top_level_hwnd)
+            if hwnd and hwnd != self.winId():
+                rect = get_window_rect_dwm(hwnd)
                 self.highlight_rect = QRect(rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1])
             else:
                 self.highlight_rect = None
-        except Exception:
+        except Exception as e:
             self.highlight_rect = None
             
         self.update()
 
     def paintEvent(self, event):
         painter = QPainter(self)
-        
         painter.fillRect(self.rect(), QColor(0, 0, 0, 70))
         
         if self.highlight_rect:
@@ -62,17 +69,18 @@ class WindowSnipOverlay(QWidget):
     def capture_snip(self):
         self.hide()
         
-        screen = QApplication.primaryScreen()
-        if screen:
-            pixmap = screen.grabWindow(0, self.highlight_rect.x(), self.highlight_rect.y(), self.highlight_rect.width(), self.highlight_rect.height())
-            
-            # Manual conversion from QPixmap to PIL Image
-            buffer = QBuffer()
-            buffer.open(QBuffer.ReadWrite)
-            pixmap.save(buffer, "PNG")
-            pil_image = Image.open(BytesIO(buffer.data()))
-            
-            self.snip_completed.emit(pil_image)
+        region_rect = (
+            self.highlight_rect.x(),
+            self.highlight_rect.y(),
+            self.highlight_rect.width(),
+            self.highlight_rect.height()
+        )
+        
+        try:
+            screenshot = pyautogui.screenshot(region=region_rect)
+            self.snip_completed.emit(screenshot)
+        except Exception as e:
+            self.snip_completed.emit(None)
         
         self.close()
 
