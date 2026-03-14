@@ -1,8 +1,6 @@
 import sys
 import platform
 import winreg
-import pyautogui
-from io import BytesIO
 import keyboard
 
 from PyQt6.QtSvg import QSvgRenderer
@@ -322,10 +320,7 @@ class ImagePreviewDialog(CustomTitleBarWindow):
         main_layout.addWidget(self.canvas_container, 1)
 
     def setup_canvas(self):
-        buffer = BytesIO()
-        self.image.save(buffer, format="PNG")
-        self.base_pixmap = QPixmap()
-        self.base_pixmap.loadFromData(buffer.getvalue())
+        self.base_pixmap = self.image
 
         self.scene.setSceneRect(0, 0, self.base_pixmap.width(), self.base_pixmap.height())
         self.scene.addPixmap(self.base_pixmap)
@@ -521,7 +516,8 @@ class SnippingToolGUI(CustomTitleBarWindow):
             self.show()
 
     def capture_fullscreen(self):
-        screenshot = pyautogui.screenshot()
+        screen = QApplication.primaryScreen()
+        screenshot = screen.grabWindow(0)
         self.show_preview(screenshot)
 
     def show_preview(self, image):

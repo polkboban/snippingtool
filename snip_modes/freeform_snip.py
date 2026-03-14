@@ -1,10 +1,6 @@
-#freeformsnip
-
-import pyautogui
 from PyQt6.QtCore import Qt, QPoint, pyqtSignal, QTimer
-from PyQt6.QtGui import QPainter, QColor, QPen, QPainterPath
+from PyQt6.QtGui import QPainter, QColor, QPen, QPainterPath, QPixmap
 from PyQt6.QtWidgets import QApplication, QWidget
-from PIL import Image, ImageDraw
 
 class FreeformSnipOverlay(QWidget):
     snip_completed = pyqtSignal(object)  
@@ -17,7 +13,7 @@ class FreeformSnipOverlay(QWidget):
         self.setMouseTracking(True)
         self.setCursor(Qt.CursorShape.CrossCursor)
         self.path = QPainterPath()
-        self.fullscreen_image = None
+        self.fullscreen_pixmap = None
 
         if delay > 0:
             QTimer.singleShot(delay * 1000, self.start_snipping)
@@ -25,7 +21,8 @@ class FreeformSnipOverlay(QWidget):
             self.start_snipping()
 
     def start_snipping(self):
-        self.fullscreen_image = pyautogui.screenshot()
+        screen = QApplication.primaryScreen()
+        self.fullscreen_pixmap = screen.grabWindow(0)
         self.showFullScreen()
 
     def paintEvent(self, event):
@@ -38,12 +35,12 @@ class FreeformSnipOverlay(QWidget):
 
     def mousePressEvent(self, event):
         self.path = QPainterPath()
-        self.path.moveTo(event.position().toPointF())
+        self.path.moveTo(event.position())
         self.drawing = True
 
     def mouseMoveEvent(self, event):
         if hasattr(self, 'drawing') and self.drawing:
-            self.path.lineTo(event.position().toPointF())
+            self.path.lineTo(event.position())
             self.update()
 
     def mouseReleaseEvent(self, event):
@@ -53,32 +50,20 @@ class FreeformSnipOverlay(QWidget):
         self.close()
 
     def capture_freeform_area(self):
-        if self.fullscreen_image is None:
+        if self.fullscreen_pixmap is None or self.path.isEmpty():
+            self.snip_completed.emit(None)
             return
 
-        screen = self.fullscreen_image
-        width, height = screen.size
+        cropped_pixmap = QPixmap(self.fullscreen_pixmap.size())
+        cropped_pixmap.fill(Qt.GlobalColor.transparent)
 
-        mask = Image.new("L", (width, height), 0)
-        draw = ImageDraw.Draw(mask)
+        painter = QPainter(cropped_pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setClipPath(self.path)
+        painter.drawPixmap(0, 0, self.fullscreen_pixmap)
+        painter.end()
 
-        points = []
-        scale = self.devicePixelRatioF()
-        for i in range(self.path.elementCount()):
-            el = self.path.elementAt(i)
-            points.append((int(el.x * scale), int(el.y * scale)))
+        bounding_rect = self.path.boundingRect().toRect()
+        final_image = cropped_pixmap.copy(bounding_rect)
 
-        if len(points) > 2:
-            draw.polygon(points, fill=255)
-
-            result = Image.new("RGBA", screen.size)
-            result.paste(screen, (0, 0), mask)
-
-            bbox = mask.getbbox()
-            if bbox:
-                result = result.crop(bbox)
-                self.snip_completed.emit(result)
-            else:
-                self.snip_completed.emit(None)
-        else:
-            self.snip_completed.emit(None)
+        self.snip_completed.emit(final_image)

@@ -126,7 +126,14 @@ class WindowSnipOverlay(QWidget):
     def capture_snip(self):
         self.hide()
         try:
-            screenshot = pyautogui.screenshot(region=self.physical_rect)
+            screen = QApplication.primaryScreen()
+            screenshot = screen.grabWindow(
+                0, 
+                self.logical_rect.x(), 
+                self.logical_rect.y(), 
+                self.logical_rect.width(), 
+                self.logical_rect.height()
+            )
             self.snip_completed.emit(screenshot)
         except Exception as e:
             print(f"Capture error: {e}")

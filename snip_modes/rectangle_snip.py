@@ -1,9 +1,8 @@
-#rectanglesnip
+#rectangle_snip.py
 
-import pyautogui
 from PyQt6.QtCore import Qt, QRect, QPoint, QTimer, pyqtSignal
 from PyQt6.QtGui import QPainter, QColor, QPen
-from PyQt6.QtWidgets import QWidget
+from PyQt6.QtWidgets import QWidget, QApplication
 
 class RectangleSnipOverlay(QWidget):
     snip_completed = pyqtSignal(object)
@@ -47,15 +46,15 @@ class RectangleSnipOverlay(QWidget):
         self.end = event.position().toPoint()
         self.hide()
 
-        scale = self.devicePixelRatioF()
-        x1 = int(min(self.begin.x(), self.end.x()) * scale)
-        y1 = int(min(self.begin.y(), self.end.y()) * scale)
-        x2 = int(max(self.begin.x(), self.end.x()) * scale)
-        y2 = int(max(self.begin.y(), self.end.y()) * scale)
+        x1 = min(self.begin.x(), self.end.x())
+        y1 = min(self.begin.y(), self.end.y())
+        x2 = max(self.begin.x(), self.end.x())
+        y2 = max(self.begin.y(), self.end.y())
         width, height = x2 - x1, y2 - y1
 
         if width > 0 and height > 0:
-            screenshot = pyautogui.screenshot(region=(x1, y1, width, height))
+            screen = QApplication.primaryScreen()
+            screenshot = screen.grabWindow(0, x1, y1, width, height)
             self.snip_completed.emit(screenshot)
         else:
             self.snip_completed.emit(None)
