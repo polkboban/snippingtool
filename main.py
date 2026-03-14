@@ -3,15 +3,22 @@ import platform
 import winreg
 import pyautogui
 from io import BytesIO
+import keyboard
 
 from PyQt6.QtSvg import QSvgRenderer
+
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QMenu, QMessageBox, QDialog,
-    QDialogButtonBox, QFileDialog, QGraphicsDropShadowEffect, QFrame, QSizeGrip
+    QDialogButtonBox, QFileDialog, QGraphicsDropShadowEffect, QFrame, QSizeGrip,
+    QGraphicsView, QGraphicsScene, QColorDialog 
 )
-from PyQt6.QtGui import QPixmap, QColor, QFont, QIcon, QPainter, QAction
-from PyQt6.QtCore import Qt, QTimer, QSize, QByteArray, pyqtSignal
+from PyQt6.QtGui import (
+    QPixmap, QColor, QFont, QIcon, QPainter, QAction,
+    QPainterPath, QPen, QShortcut, QKeySequence 
+)
+
+from PyQt6.QtCore import Qt, QTimer, QSize, QByteArray, pyqtSignal, QThread
 
 from snip_modes.rectangle_snip import RectangleSnipOverlay
 from snip_modes.freeform_snip import FreeformSnipOverlay
@@ -24,6 +31,11 @@ SVG_ICONS = {
     "window": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="{color}" width="18px" height="18px"><path d="M2 5.5A2.5 2.5 0 0 1 4.5 3h15A2.5 2.5 0 0 1 22 5.5v13a2.5 2.5 0 0 1-2.5 2.5h-15A2.5 2.5 0 0 1 2 18.5v-13ZM4.5 4A1.5 1.5 0 0 0 3 5.5v2A.5.5 0 0 0 3.5 8h17a.5.5 0 0 0 .5-.5v-2A1.5 1.5 0 0 0 19.5 4h-15ZM21 9H3v9.5A1.5 1.5 0 0 0 4.5 20h15a1.5 1.5 0 0 0 1.5-1.5V9Z"/></svg>""",
     "fullscreen": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="{color}" width="18px" height="18px"><path d="M2.5 3A.5.5 0 0 0 2 3.5v5a.5.5 0 0 0 1 0v-4h4a.5.5 0 0 0 0-1h-5ZM21.5 3a.5.5 0 0 0-.5.5v4a.5.5 0 0 0 1 0v-4h4a.5.5 0 0 0 0-1h-5ZM2.5 16a.5.5 0 0 0-.5.5v5a.5.5 0 0 0 .5.5h5a.5.5 0 0 0 0-1h-4v-4a.5.5 0 0 0-1 0ZM22 15.5a.5.5 0 0 0-1 0v4h-4a.5.5 0 0 0 0 1h5a.5.5 0 0 0 .5-.5v-5Z"/></svg>""",
     "delay": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="{color}" width="18px" height="18px"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm0 19a9 9 0 1 1 9-9 9 9 0 0 1-9 9Z"/><path d="M12 6a.5.5 0 0 0-.5.5v5.79l-3.65 2.1a.5.5 0 0 0 .5.86l4-2.31A.5.5 0 0 0 12.5 12V6.5A.5.5 0 0 0 12 6Z"/></svg>""",
+    "pen": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path><path d="M2 2l7.586 7.586"></path><circle cx="11" cy="11" r="2"></circle></svg>""",
+    "highlighter": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l-6 6v3h9l3-3"></path><path d="M22 12l-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"></path></svg>""",
+    "undo": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"></path><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"></path></svg>""",
+    "save": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>""",
+    "copy": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>"""
 }
 
 def create_svg_icon(name, color):
@@ -137,78 +149,236 @@ class CustomTitleBarWindow(QMainWindow):
         if hasattr(self, 'title_label'):
             self.title_label.setText(title)
 
-class ImagePreviewDialog(QDialog):
-    def __init__(self, image, parent=None):
+class AnnotationScene(QGraphicsScene):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.resize(800, 600) 
+        self.current_path_item = None
+        self.current_path = None  
+        self.items_drawn = [] 
+        
+        self.pen_color = QColor(255, 0, 0)
+        self.pen_width = 4
+        self.is_highlighter = False
+        self.update_pen()
+
+    def update_pen(self):
+        self.current_pen = QPen(self.pen_color, self.pen_width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+        if self.is_highlighter:
+            color = QColor(self.pen_color)
+            color.setAlpha(100)
+            self.current_pen.setColor(color)
+            self.current_pen.setWidth(15)
+
+    def set_color(self, color):
+        self.pen_color = color
+        self.update_pen()
+
+    def toggle_highlighter(self, state):
+        self.is_highlighter = state
+        self.update_pen()
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.current_path = QPainterPath(event.scenePos())
+            self.current_path_item = self.addPath(self.current_path, self.current_pen)
+            self.items_drawn.append(self.current_path_item)
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() & Qt.MouseButton.LeftButton and self.current_path_item:
+            self.current_path.lineTo(event.scenePos())
+            self.current_path_item.setPath(self.current_path)
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.current_path_item = None
+            self.current_path = None
+        super().mouseReleaseEvent(event)
+
+    def undo(self):
+        if self.items_drawn:
+            item = self.items_drawn.pop()
+            self.removeItem(item)
+
+class ImagePreviewDialog(CustomTitleBarWindow):
+    def __init__(self, image, dark_mode=False, parent=None):
+        super().__init__(dark_mode=dark_mode, parent=parent)
+        self.setWindowModality(Qt.WindowModality.ApplicationModal)
+        self.setWindowTitle("Snipping Tool")
+        self.resize(1000, 700)
+        
         self.image = image
+        self.dark_mode = dark_mode
+        self.icon_color = "#ffffff" if dark_mode else "#000000"
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(25, 25, 25, 25)
+        self.setup_ui()
+        self.setup_canvas()
 
-        wrapper = QWidget()
-        wrapper.setObjectName("dialogContainer")
-        
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(25)
-        shadow.setXOffset(0)
-        shadow.setYOffset(4)
-        shadow.setColor(QColor(0, 0, 0, 180))
-        wrapper.setGraphicsEffect(shadow)
+        self.copy_shortcut = QShortcut(QKeySequence("Ctrl+C"), self)
+        self.copy_shortcut.activated.connect(self.copy_to_clipboard)
 
-        v_layout = QVBoxLayout(wrapper)
-        self.image_label = QLabel()
-        self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        v_layout.addWidget(self.image_label, 1)
+        self.save_shortcut = QShortcut(QKeySequence("Ctrl+S"), self)
+        self.save_shortcut.activated.connect(self.save_image)
 
-        buttons = QDialogButtonBox()
-        self.save_btn = buttons.addButton("Save", QDialogButtonBox.ButtonRole.AcceptRole)
-        self.copy_btn = buttons.addButton("Copy", QDialogButtonBox.ButtonRole.ActionRole)
-        self.close_btn = buttons.addButton("Close", QDialogButtonBox.ButtonRole.RejectRole)
-        
-        buttons.accepted.connect(self.save_image)
-        buttons.rejected.connect(self.reject)
+    def setup_ui(self):
+        main_layout = QVBoxLayout(self.content)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        toolbar = QWidget()
+        toolbar.setFixedHeight(55)
+        t_layout = QHBoxLayout(toolbar)
+        t_layout.setContentsMargins(15, 0, 15, 0)
+        t_layout.setSpacing(5)
+
+        btn_style = f"""
+            QPushButton {{
+                background: transparent;
+                border: none;
+                border-radius: 6px;
+                padding: 10px;
+            }}
+            QPushButton:hover {{
+                background-color: {"#383838" if self.dark_mode else "#e0e0e0"};
+            }}
+            QPushButton:checked {{
+                background-color: {"#4a4a4a" if self.dark_mode else "#d0d0d0"};
+                border-bottom: 3px solid {"#0078d4" if not self.dark_mode else "#4cc2ff"};
+            }}
+        """
+
+        self.pen_btn = QPushButton()
+        self.pen_btn.setIcon(create_svg_icon("pen", self.icon_color))
+        self.pen_btn.setIconSize(QSize(20, 20))
+        self.pen_btn.setToolTip("Pen Color")
+        self.pen_btn.setStyleSheet(btn_style)
+        self.pen_btn.clicked.connect(self.choose_color)
+
+        self.highlight_btn = QPushButton()
+        self.highlight_btn.setIcon(create_svg_icon("highlighter", self.icon_color))
+        self.highlight_btn.setIconSize(QSize(20, 20))
+        self.highlight_btn.setCheckable(True)
+        self.highlight_btn.setToolTip("Highlighter")
+        self.highlight_btn.setStyleSheet(btn_style)
+        self.highlight_btn.toggled.connect(self.toggle_highlighter)
+
+        self.undo_btn = QPushButton()
+        self.undo_btn.setIcon(create_svg_icon("undo", self.icon_color))
+        self.undo_btn.setIconSize(QSize(20, 20))
+        self.undo_btn.setToolTip("Undo")
+        self.undo_btn.setStyleSheet(btn_style)
+        self.undo_btn.clicked.connect(self.undo_stroke)
+
+        self.copy_btn = QPushButton()
+        self.copy_btn.setIcon(create_svg_icon("copy", self.icon_color))
+        self.copy_btn.setIconSize(QSize(20, 20))
+        self.copy_btn.setToolTip("Copy (Ctrl+C)")
+        self.copy_btn.setStyleSheet(btn_style)
         self.copy_btn.clicked.connect(self.copy_to_clipboard)
 
-        v_layout.addWidget(buttons)
-        layout.addWidget(wrapper)
-        
-        self.grip = QSizeGrip(wrapper)
-        self.grip.setStyleSheet("margin: 5px;")
-        v_layout.addWidget(self.grip, 0, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
+        self.save_btn = QPushButton()
+        self.save_btn.setIcon(create_svg_icon("save", self.icon_color))
+        self.save_btn.setIconSize(QSize(20, 20))
+        self.save_btn.setToolTip("Save as (Ctrl+S)")
+        self.save_btn.setStyleSheet(btn_style)
+        self.save_btn.clicked.connect(self.save_image)
 
+        t_layout.addSpacing(20)
+        t_layout.addWidget(self.pen_btn)
+        t_layout.addWidget(self.highlight_btn)
+        t_layout.addWidget(self.undo_btn)
+        t_layout.addStretch(1)
+        t_layout.addWidget(self.copy_btn)
+        t_layout.addWidget(self.save_btn)
+
+        main_layout.addWidget(toolbar)
+
+        divider = QFrame()
+        divider.setFrameShape(QFrame.Shape.HLine)
+        divider.setStyleSheet(f"background-color: {'#3a3a3a' if self.dark_mode else '#e0e0e0'};")
+        divider.setFixedHeight(1)
+        main_layout.addWidget(divider)
+
+        bg_color = '#141414' if self.dark_mode else '#e5e5e5'
+        self.canvas_container = QWidget()
+        self.canvas_container.setStyleSheet(f"background-color: {bg_color}; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px;")
+        
+        c_layout = QVBoxLayout(self.canvas_container)
+        c_layout.setContentsMargins(40, 40, 40, 40)
+
+        self.scene = AnnotationScene(self)
+        self.view = QGraphicsView(self.scene)
+        self.view.setRenderHint(QPainter.RenderHint.Antialiasing)
+        self.view.setStyleSheet("background: transparent; border: none;")
+        
+        shadow = QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(20)
+        shadow.setColor(QColor(0, 0, 0, 120))
+        shadow.setOffset(0, 4)
+        self.view.setGraphicsEffect(shadow)
+
+        c_layout.addWidget(self.view)
+        main_layout.addWidget(self.canvas_container, 1)
+
+    def setup_canvas(self):
         buffer = BytesIO()
         self.image.save(buffer, format="PNG")
         self.base_pixmap = QPixmap()
         self.base_pixmap.loadFromData(buffer.getvalue())
-        self.update_image_display()
 
-    def update_image_display(self):
-        scaled_pixmap = self.base_pixmap.scaled(self.image_label.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-        self.image_label.setPixmap(scaled_pixmap)
-        
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self.update_image_display()
+        self.scene.setSceneRect(0, 0, self.base_pixmap.width(), self.base_pixmap.height())
+        self.scene.addPixmap(self.base_pixmap)
+
+    def choose_color(self):
+        from PyQt6.QtWidgets import QColorDialog
+        color = QColorDialog.getColor(self.scene.pen_color, self, "Choose Pen Color")
+        if color.isValid():
+            self.scene.set_color(color)
+            self.highlight_btn.setChecked(False)
+
+    def toggle_highlighter(self, checked):
+        self.scene.toggle_highlighter(checked)
+
+    def undo_stroke(self):
+        self.scene.undo()
+
+    def get_rendered_image(self):
+        pixmap = QPixmap(self.scene.sceneRect().size().toSize())
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        self.scene.render(painter)
+        painter.end()
+        return pixmap
 
     def save_image(self):
         path, _ = QFileDialog.getSaveFileName(self, "Save Screenshot", "", "PNG Files (*.png)")
         if path:
-            self.image.save(path)
-        self.accept()
+            final_image = self.get_rendered_image()
+            final_image.save(path)
+            self.close()
 
     def copy_to_clipboard(self):
-        buffer = BytesIO()
-        self.image.save(buffer, format="PNG")
-        pixmap = QPixmap()
-        pixmap.loadFromData(buffer.getvalue())
-        QApplication.clipboard().setPixmap(pixmap)
-        
-        self.copy_btn.setText("Copied!")
+        final_image = self.get_rendered_image()
+        QApplication.clipboard().setPixmap(final_image)
         self.copy_btn.setEnabled(False)
-        QTimer.singleShot(1200, self.accept)
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(1200, self.close)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.view.fitInView(self.scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
+
+class GlobalHotkeyThread(QThread):
+    trigger_snip = pyqtSignal()
+
+    def run(self):
+        keyboard.add_hotkey('ctrl+shift+s', self.emit_trigger)
+        keyboard.wait()
+
+    def emit_trigger(self):
+        self.trigger_snip.emit()
 
 class SnippingToolGUI(CustomTitleBarWindow):
     def __init__(self, dark_mode=False):
@@ -226,6 +396,10 @@ class SnippingToolGUI(CustomTitleBarWindow):
         self.current_delay_sec = 0
         
         self.setup_ui()
+
+        self.hotkey_thread = GlobalHotkeyThread()
+        self.hotkey_thread.trigger_snip.connect(self.start_snip)
+        self.hotkey_thread.start()
 
     def setup_ui(self):
         main_layout = QVBoxLayout(self.content)
@@ -352,8 +526,8 @@ class SnippingToolGUI(CustomTitleBarWindow):
 
     def show_preview(self, image):
         if image:
-            preview = ImagePreviewDialog(image, self)
-            preview.exec()
+            self.preview_window = ImagePreviewDialog(image, dark_mode=self.dark_mode, parent=self)
+            self.preview_window.show()
         self.show()
 
 
