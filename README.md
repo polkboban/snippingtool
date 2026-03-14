@@ -1,2 +1,39 @@
-# snippingtool
-Snipping tool clone
+# Snipping Tool Clone
+
+A feature-rich desktop screen capture application built with Python and PyQt5. This tool provides a modern user interface that replicates the core functionality of the native Windows Snipping Tool, complete with automatic dark and light theme support based on system preferences.
+
+## Features
+
+* **Capture Modes:**
+    * **Rectangle Mode:** Click and drag to capture a specific rectangular area.
+    * **Free-form Mode:** Draw an arbitrary shape to capture custom areas.
+    * **Window Mode:** Automatically highlight and capture specific application windows using Windows APIs.
+    * **Fullscreen Mode:** Capture the entire screen immediately.
+* **Capture Delay:** Set a timer for 3, 5, or 10 seconds before the capture begins.
+* **Preview Dialog:** Review your captured snip in a dedicated preview window before saving or copying.
+* **Quick Actions:** Save the capture as a PNG file or copy it directly to your system clipboard.
+* **System Theming:** Automatically adapts to Windows light or dark mode settings.
+
+## Prerequisites
+
+* Python 3.x
+* Required Python packages:
+    * `PyQt5`
+    * `pyautogui`
+    * `Pillow`
+    * `pywin32`
+
+## Installation
+
+1. Clone the repository to your local machine.
+2. Install the required dependencies using pip:
+    ```bash
+    pip install PyQt5 pyautogui Pillow pywin32
+    ```
+
+## Usage
+
+Run the main application script:
+
+```bash
+python main.py
