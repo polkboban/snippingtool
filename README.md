@@ -1,6 +1,6 @@
 # Snipping Tool Clone
 
-A feature-rich desktop screen capture application built with Python and PyQt5. This tool provides a modern user interface that replicates the core functionality of the native Windows Snipping Tool, complete with automatic dark and light theme support based on system preferences.
+A feature-rich desktop screen capture application built with Python and PyQt6. This tool provides a modern user interface that replicates the core functionality of the native Windows Snipping Tool, complete with automatic dark and light theme support based on system preferences.
 
 ## Features
 
@@ -18,7 +18,7 @@ A feature-rich desktop screen capture application built with Python and PyQt5. T
 
 * Python 3.x
 * Required Python packages:
-    * `PyQt5`
+    * `PyQt6`
     * `pyautogui`
     * `Pillow`
     * `pywin32`
@@ -28,7 +28,7 @@ A feature-rich desktop screen capture application built with Python and PyQt5. T
 1. Clone the repository to your local machine.
 2. Install the required dependencies using pip:
     ```bash
-    pip install PyQt5 pyautogui Pillow pywin32
+    pip install PyQt6 pyautogui Pillow pywin32
     ```
 
 ## Usage

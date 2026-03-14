@@ -1,22 +1,21 @@
 #freeformsnip
 
 import pyautogui
-from PyQt5.QtCore import Qt, QPoint, pyqtSignal, QTimer
-from PyQt5.QtGui import QPainter, QColor, QPen, QPainterPath
-from PyQt5.QtWidgets import QApplication, QWidget
+from PyQt6.QtCore import Qt, QPoint, pyqtSignal, QTimer
+from PyQt6.QtGui import QPainter, QColor, QPen, QPainterPath
+from PyQt6.QtWidgets import QApplication, QWidget
 from PIL import Image, ImageDraw
-
 
 class FreeformSnipOverlay(QWidget):
     snip_completed = pyqtSignal(object)  
 
     def __init__(self, delay=0):
         super().__init__()
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
-        self.setAttribute(Qt.WA_NoSystemBackground, True)
-        self.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setMouseTracking(True)
-        self.setCursor(Qt.CrossCursor)
+        self.setCursor(Qt.CursorShape.CrossCursor)
         self.path = QPainterPath()
         self.fullscreen_image = None
 
@@ -31,7 +30,7 @@ class FreeformSnipOverlay(QWidget):
 
     def paintEvent(self, event):
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.fillRect(self.rect(), QColor(0, 0, 0, 100))
         pen = QPen(QColor(0, 255, 0), 2)
         painter.setPen(pen)
@@ -39,12 +38,12 @@ class FreeformSnipOverlay(QWidget):
 
     def mousePressEvent(self, event):
         self.path = QPainterPath()
-        self.path.moveTo(event.pos())
+        self.path.moveTo(event.position().toPointF())
         self.drawing = True
 
     def mouseMoveEvent(self, event):
         if hasattr(self, 'drawing') and self.drawing:
-            self.path.lineTo(event.pos())
+            self.path.lineTo(event.position().toPointF())
             self.update()
 
     def mouseReleaseEvent(self, event):
@@ -64,14 +63,22 @@ class FreeformSnipOverlay(QWidget):
         draw = ImageDraw.Draw(mask)
 
         points = []
+        scale = self.devicePixelRatioF()
         for i in range(self.path.elementCount()):
             el = self.path.elementAt(i)
-            points.append((int(el.x), int(el.y)))
+            points.append((int(el.x * scale), int(el.y * scale)))
 
-        if len(points) > 1:
+        if len(points) > 2:
             draw.polygon(points, fill=255)
 
             result = Image.new("RGBA", screen.size)
             result.paste(screen, (0, 0), mask)
 
-            self.snip_completed.emit(result)
+            bbox = mask.getbbox()
+            if bbox:
+                result = result.crop(bbox)
+                self.snip_completed.emit(result)
+            else:
+                self.snip_completed.emit(None)
+        else:
+            self.snip_completed.emit(None)

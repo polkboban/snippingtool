@@ -4,14 +4,14 @@ import winreg
 import pyautogui
 from io import BytesIO
 
-from PyQt5.QtSvg import QSvgRenderer
-from PyQt5.QtWidgets import (
+from PyQt6.QtSvg import QSvgRenderer
+from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QMenu, QAction, QMessageBox, QDialog,
+    QPushButton, QLabel, QMenu, QMessageBox, QDialog,
     QDialogButtonBox, QFileDialog, QGraphicsDropShadowEffect, QFrame, QSizeGrip
 )
-from PyQt5.QtGui import QPixmap, QColor, QFont, QIcon, QPainter
-from PyQt5.QtCore import Qt, QTimer, QSize, QByteArray, pyqtSignal
+from PyQt6.QtGui import QPixmap, QColor, QFont, QIcon, QPainter, QAction
+from PyQt6.QtCore import Qt, QTimer, QSize, QByteArray, pyqtSignal
 
 from snip_modes.rectangle_snip import RectangleSnipOverlay
 from snip_modes.freeform_snip import FreeformSnipOverlay
@@ -30,7 +30,7 @@ def create_svg_icon(name, color):
     svg_data = SVG_ICONS[name].format(color=color)
     renderer = QSvgRenderer(QByteArray(svg_data.encode('utf-8')))
     pixmap = QPixmap(renderer.defaultSize())
-    pixmap.fill(Qt.transparent)
+    pixmap.fill(Qt.GlobalColor.transparent)
     painter = QPainter()
     painter.begin(pixmap)
     renderer.render(painter)
@@ -53,11 +53,11 @@ def is_dark_mode():
 class CustomTitleBarWindow(QMainWindow):
     def __init__(self, dark_mode=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Window)
-        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
         self.main_wrapper = QWidget()
-        self.main_wrapper.setAttribute(Qt.WA_TranslucentBackground)
+        self.main_wrapper.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         main_layout = QVBoxLayout(self.main_wrapper)
         main_layout.setContentsMargins(35, 35, 35, 35)
         self.setCentralWidget(self.main_wrapper)
@@ -112,7 +112,7 @@ class CustomTitleBarWindow(QMainWindow):
         
         self.grip = QSizeGrip(self.container)
         self.grip.setStyleSheet("background-color: transparent;")
-        self.v_layout.addWidget(self.grip, 0, Qt.AlignBottom | Qt.AlignRight)
+        self.v_layout.addWidget(self.grip, 0, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
 
     def toggle_maximize(self, event=None):
         if self.isMaximized():
@@ -123,13 +123,13 @@ class CustomTitleBarWindow(QMainWindow):
             self.main_wrapper.layout().setContentsMargins(0, 0, 0, 0)
 
     def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton and event.y() < (self.title_bar.height() + 35):
-            self._drag_pos = event.globalPos() - self.frameGeometry().topLeft()
+        if event.button() == Qt.MouseButton.LeftButton and event.position().y() < (self.title_bar.height() + 35):
+            self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
             event.accept()
 
     def mouseMoveEvent(self, event):
-        if hasattr(self, "_drag_pos") and event.buttons() == Qt.LeftButton:
-            self.move(event.globalPos() - self._drag_pos)
+        if hasattr(self, "_drag_pos") and event.buttons() == Qt.MouseButton.LeftButton:
+            self.move(event.globalPosition().toPoint() - self._drag_pos)
             event.accept()
 
     def setWindowTitle(self, title):
@@ -140,8 +140,8 @@ class CustomTitleBarWindow(QMainWindow):
 class ImagePreviewDialog(QDialog):
     def __init__(self, image, parent=None):
         super().__init__(parent)
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
-        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.resize(800, 600) 
         self.image = image
 
@@ -160,13 +160,13 @@ class ImagePreviewDialog(QDialog):
 
         v_layout = QVBoxLayout(wrapper)
         self.image_label = QLabel()
-        self.image_label.setAlignment(Qt.AlignCenter)
+        self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         v_layout.addWidget(self.image_label, 1)
 
         buttons = QDialogButtonBox()
-        self.save_btn = buttons.addButton("Save", QDialogButtonBox.AcceptRole)
-        self.copy_btn = buttons.addButton("Copy", QDialogButtonBox.ActionRole)
-        self.close_btn = buttons.addButton("Close", QDialogButtonBox.RejectRole)
+        self.save_btn = buttons.addButton("Save", QDialogButtonBox.ButtonRole.AcceptRole)
+        self.copy_btn = buttons.addButton("Copy", QDialogButtonBox.ButtonRole.ActionRole)
+        self.close_btn = buttons.addButton("Close", QDialogButtonBox.ButtonRole.RejectRole)
         
         buttons.accepted.connect(self.save_image)
         buttons.rejected.connect(self.reject)
@@ -177,7 +177,7 @@ class ImagePreviewDialog(QDialog):
         
         self.grip = QSizeGrip(wrapper)
         self.grip.setStyleSheet("margin: 5px;")
-        v_layout.addWidget(self.grip, 0, Qt.AlignBottom | Qt.AlignRight)
+        v_layout.addWidget(self.grip, 0, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
 
         buffer = BytesIO()
         self.image.save(buffer, format="PNG")
@@ -186,7 +186,7 @@ class ImagePreviewDialog(QDialog):
         self.update_image_display()
 
     def update_image_display(self):
-        scaled_pixmap = self.base_pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        scaled_pixmap = self.base_pixmap.scaled(self.image_label.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
         self.image_label.setPixmap(scaled_pixmap)
         
     def resizeEvent(self, event):
@@ -265,10 +265,10 @@ class SnippingToolGUI(CustomTitleBarWindow):
         placeholder = QFrame()
         placeholder.setObjectName("placeholderFrame")
         placeholder_layout = QVBoxLayout(placeholder)
-        placeholder_layout.setAlignment(Qt.AlignCenter)
+        placeholder_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         placeholder_label = QLabel("Snip and share")
-        placeholder_label.setAlignment(Qt.AlignCenter)
+        placeholder_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         placeholder_label.setObjectName("placeholderLabel")
         placeholder_layout.addWidget(placeholder_label)
 
@@ -302,7 +302,7 @@ class SnippingToolGUI(CustomTitleBarWindow):
             action.triggered.connect(lambda checked, t=text: self.set_mode(t))
             menu.addAction(action)
             
-        menu.exec_(self.mode_btn.mapToGlobal(self.mode_btn.rect().bottomLeft()))
+        menu.exec(self.mode_btn.mapToGlobal(self.mode_btn.rect().bottomLeft()))
 
     def show_delay_menu(self):
         menu = QMenu(self)
@@ -313,7 +313,7 @@ class SnippingToolGUI(CustomTitleBarWindow):
             action.triggered.connect(lambda checked, idx=i: self.set_delay(idx))
             menu.addAction(action)
             
-        menu.exec_(self.delay_btn.mapToGlobal(self.delay_btn.rect().bottomLeft()))
+        menu.exec(self.delay_btn.mapToGlobal(self.delay_btn.rect().bottomLeft()))
 
     def set_mode(self, mode):
         self.current_mode = mode
@@ -353,8 +353,10 @@ class SnippingToolGUI(CustomTitleBarWindow):
     def show_preview(self, image):
         if image:
             preview = ImagePreviewDialog(image, self)
-            preview.exec_()
+            preview.exec()
         self.show()
+
+
 
 DARK_THEME_STYLESHEET = """
 QWidget {
@@ -522,9 +524,6 @@ QMenu::item:selected {
 """
 
 if __name__ == "__main__":
-    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
-    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
-
     app = QApplication(sys.argv)
     
     dark_mode = is_dark_mode()
@@ -533,4 +532,4 @@ if __name__ == "__main__":
     
     win = SnippingToolGUI(dark_mode=dark_mode)
     win.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

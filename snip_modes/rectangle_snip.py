@@ -1,10 +1,9 @@
 #rectanglesnip
 
 import pyautogui
-from PyQt5.QtCore import Qt, QRect, QPoint, QTimer,pyqtSignal
-from PyQt5.QtGui import QPainter, QColor, QPen
-from PyQt5.QtWidgets import QApplication, QWidget, QFileDialog
-
+from PyQt6.QtCore import Qt, QRect, QPoint, QTimer, pyqtSignal
+from PyQt6.QtGui import QPainter, QColor, QPen
+from PyQt6.QtWidgets import QWidget
 
 class RectangleSnipOverlay(QWidget):
     snip_completed = pyqtSignal(object)
@@ -14,11 +13,11 @@ class RectangleSnipOverlay(QWidget):
         self.delay = delay
         self.begin = QPoint()
         self.end = QPoint()
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
-        self.setAttribute(Qt.WA_NoSystemBackground, True)
-        self.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setMouseTracking(True)
-        self.setCursor(Qt.CrossCursor)
+        self.setCursor(Qt.CursorShape.CrossCursor)
 
         if self.delay > 0:
             QTimer.singleShot(self.delay * 1000, self.showFullScreen)
@@ -31,21 +30,21 @@ class RectangleSnipOverlay(QWidget):
         if not self.begin.isNull() and not self.end.isNull():
             pen = QPen(QColor(255, 0, 0), 2)
             painter.setPen(pen)
-            painter.setBrush(Qt.NoBrush)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
             rect = QRect(self.begin, self.end)
             painter.drawRect(rect)
 
     def mousePressEvent(self, event):
-        self.begin = event.pos()
+        self.begin = event.position().toPoint()
         self.end = self.begin
         self.update()
 
     def mouseMoveEvent(self, event):
-        self.end = event.pos()
+        self.end = event.position().toPoint()
         self.update()
 
     def mouseReleaseEvent(self, event):
-        self.end = event.pos()
+        self.end = event.position().toPoint()
         self.hide()
 
         scale = self.devicePixelRatioF()
@@ -58,4 +57,7 @@ class RectangleSnipOverlay(QWidget):
         if width > 0 and height > 0:
             screenshot = pyautogui.screenshot(region=(x1, y1, width, height))
             self.snip_completed.emit(screenshot)
+        else:
+            self.snip_completed.emit(None)
+            
         self.close()
