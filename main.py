@@ -23,6 +23,9 @@ from snip_modes.freeform_snip import FreeformSnipOverlay
 from snip_modes.window_snip import WindowSnipOverlay
 
 SVG_ICONS = {
+    "blur": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M8 12h8"></path><path d="M12 8v8"></path></svg>""",
+    "text": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line></svg>""",
+    "rect_tool": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>""",
     "plus": """<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>""",
     "rectangle": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="{color}" width="18px" height="18px"><path d="M2 4.5A2.5 2.5 0 0 1 4.5 2h15A2.5 2.5 0 0 1 22 4.5v15a2.5 2.5 0 0 1-2.5 2.5h-15A2.5 2.5 0 0 1 2 19.5v-15ZM4.5 3A1.5 1.5 0 0 0 3 4.5v15A1.5 1.5 0 0 0 4.5 21h15a1.5 1.5 0 0 0 1.5-1.5v-15A1.5 1.5 0 0 0 19.5 3h-15Z"/></svg>""",
     "free-form": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="{color}" width="18px" height="18px"><path d="M19.64 3.36a1.5 1.5 0 0 1 .42 2.08l-2.73 6.83a.5.5 0 0 0 .94.38l2.73-6.83a2.5 2.5 0 0 0-3.46-3.46l-6.83 2.73a.5.5 0 0 0 .38.94l6.83-2.73a1.5 1.5 0 0 1 2.08.42ZM8.41 6.1a1.5 1.5 0 0 1 2.49-1.59l.34.21a.5.5 0 0 0 .6-.2l.21-.34a1.5 1.5 0 0 1 2.49 1.59l-4.5 7.19a1.5 1.5 0 0 1-2.48 0L3.6 8.39a1.5 1.5 0 0 1 2.1-2.12l2.7 2.83ZM3.9 7.7a.5.5 0 0 0-.7.71l3.96 4.57a.5.5 0 0 0 .83 0l4.5-7.19a.5.5 0 0 0-.83-.53l-4.14 6.62-3.62-4.18Z"/></svg>""",
@@ -151,47 +154,85 @@ class AnnotationScene(QGraphicsScene):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.current_path_item = None
+        self.current_shape_item = None
         self.current_path = None  
         self.items_drawn = [] 
+        self.base_pixmap = None
         
         self.pen_color = QColor(255, 0, 0)
         self.pen_width = 4
-        self.is_highlighter = False
+        self.current_tool = "pen" 
         self.update_pen()
 
     def update_pen(self):
         self.current_pen = QPen(self.pen_color, self.pen_width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
-        if self.is_highlighter:
+        if self.current_tool == "highlighter":
             color = QColor(self.pen_color)
             color.setAlpha(100)
             self.current_pen.setColor(color)
             self.current_pen.setWidth(15)
+        elif self.current_tool == "blur":
+            self.current_pen = QPen(QColor(100, 100, 100, 150), 2, Qt.PenStyle.DashLine)
 
     def set_color(self, color):
         self.pen_color = color
         self.update_pen()
 
-    def toggle_highlighter(self, state):
-        self.is_highlighter = state
+    def set_tool(self, tool_name):
+        self.current_tool = tool_name
         self.update_pen()
+
+    def set_base_pixmap(self, pixmap):
+        self.base_pixmap = pixmap
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
-            self.current_path = QPainterPath(event.scenePos())
-            self.current_path_item = self.addPath(self.current_path, self.current_pen)
-            self.items_drawn.append(self.current_path_item)
+            self.start_pos = event.scenePos()
+            
+            if self.current_tool in ["pen", "highlighter"]:
+                self.current_path = QPainterPath(self.start_pos)
+                self.current_path_item = self.addPath(self.current_path, self.current_pen)
+                self.items_drawn.append(self.current_path_item)
+            elif self.current_tool in ["rectangle", "blur"]:
+                from PyQt6.QtCore import QRectF
+                self.current_shape_item = self.addRect(QRectF(self.start_pos, self.start_pos), self.current_pen)
+                if self.current_tool == "rectangle":
+                    self.items_drawn.append(self.current_shape_item)
+                
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
-        if event.buttons() & Qt.MouseButton.LeftButton and self.current_path_item:
-            self.current_path.lineTo(event.scenePos())
-            self.current_path_item.setPath(self.current_path)
+        if event.buttons() & Qt.MouseButton.LeftButton:
+            if self.current_tool in ["pen", "highlighter"] and self.current_path_item:
+                self.current_path.lineTo(event.scenePos())
+                self.current_path_item.setPath(self.current_path)
+            elif self.current_tool in ["rectangle", "blur"] and self.current_shape_item:
+                from PyQt6.QtCore import QRectF
+                rect = QRectF(self.start_pos, event.scenePos()).normalized()
+                self.current_shape_item.setRect(rect)
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
+            if self.current_tool == "blur" and self.current_shape_item:
+                rect = self.current_shape_item.rect().toRect()
+                self.removeItem(self.current_shape_item)
+                self.current_shape_item = None
+                
+                if rect.width() > 0 and rect.height() > 0 and self.base_pixmap:
+                    captured_region = self.base_pixmap.copy(rect)
+                    scaled_down = captured_region.scaled(max(1, rect.width() // 10), max(1, rect.height() // 10), Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.FastTransformation)
+                    pixelated = scaled_down.scaled(rect.width(), rect.height(), Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.FastTransformation)
+                    
+                    from PyQt6.QtWidgets import QGraphicsPixmapItem
+                    blur_item = QGraphicsPixmapItem(pixelated)
+                    blur_item.setPos(float(rect.x()), float(rect.y()))
+                    self.addItem(blur_item)
+                    self.items_drawn.append(blur_item)
+            
             self.current_path_item = None
             self.current_path = None
+            self.current_shape_item = None
         super().mouseReleaseEvent(event)
 
     def undo(self):
@@ -249,9 +290,11 @@ class ImagePreviewDialog(CustomTitleBarWindow):
         self.pen_btn = QPushButton()
         self.pen_btn.setIcon(create_svg_icon("pen", self.icon_color))
         self.pen_btn.setIconSize(QSize(20, 20))
+        self.pen_btn.setCheckable(True)
+        self.pen_btn.setChecked(True)
         self.pen_btn.setToolTip("Pen Color")
         self.pen_btn.setStyleSheet(btn_style)
-        self.pen_btn.clicked.connect(self.choose_color)
+        self.pen_btn.clicked.connect(lambda: self.switch_tool("pen"))
 
         self.highlight_btn = QPushButton()
         self.highlight_btn.setIcon(create_svg_icon("highlighter", self.icon_color))
@@ -259,7 +302,27 @@ class ImagePreviewDialog(CustomTitleBarWindow):
         self.highlight_btn.setCheckable(True)
         self.highlight_btn.setToolTip("Highlighter")
         self.highlight_btn.setStyleSheet(btn_style)
-        self.highlight_btn.toggled.connect(self.toggle_highlighter)
+        self.highlight_btn.clicked.connect(lambda: self.switch_tool("highlighter"))
+
+        self.rect_btn = QPushButton()
+        self.rect_btn.setIcon(create_svg_icon("rect_tool", self.icon_color))
+        self.rect_btn.setIconSize(QSize(20, 20))
+        self.rect_btn.setCheckable(True)
+        self.rect_btn.setToolTip("Rectangle")
+        self.rect_btn.setStyleSheet(btn_style)
+        self.rect_btn.clicked.connect(lambda: self.switch_tool("rectangle"))
+
+        self.blur_btn = QPushButton()
+        self.blur_btn.setIcon(create_svg_icon("blur", self.icon_color))
+        self.blur_btn.setIconSize(QSize(20, 20))
+        self.blur_btn.setCheckable(True)
+        self.blur_btn.setToolTip("Pixelate Area")
+        self.blur_btn.setStyleSheet(btn_style)
+        self.blur_btn.clicked.connect(lambda: self.switch_tool("blur"))
+
+        self.color_btn = QPushButton()
+        self.color_btn.setStyleSheet(f"background-color: #ff0000; border-radius: 10px; min-width: 20px; max-width: 20px; min-height: 20px; max-height: 20px; margin: 5px;")
+        self.color_btn.clicked.connect(self.choose_color)
 
         self.undo_btn = QPushButton()
         self.undo_btn.setIcon(create_svg_icon("undo", self.icon_color))
@@ -267,6 +330,13 @@ class ImagePreviewDialog(CustomTitleBarWindow):
         self.undo_btn.setToolTip("Undo")
         self.undo_btn.setStyleSheet(btn_style)
         self.undo_btn.clicked.connect(self.undo_stroke)
+
+        self.ocr_btn = QPushButton()
+        self.ocr_btn.setIcon(create_svg_icon("text", self.icon_color))
+        self.ocr_btn.setIconSize(QSize(20, 20))
+        self.ocr_btn.setToolTip("Extract Text (OCR)")
+        self.ocr_btn.setStyleSheet(btn_style)
+        self.ocr_btn.clicked.connect(self.extract_text)
 
         self.copy_btn = QPushButton()
         self.copy_btn.setIcon(create_svg_icon("copy", self.icon_color))
@@ -285,8 +355,12 @@ class ImagePreviewDialog(CustomTitleBarWindow):
         t_layout.addSpacing(20)
         t_layout.addWidget(self.pen_btn)
         t_layout.addWidget(self.highlight_btn)
+        t_layout.addWidget(self.rect_btn)
+        t_layout.addWidget(self.blur_btn)
+        t_layout.addWidget(self.color_btn)
         t_layout.addWidget(self.undo_btn)
         t_layout.addStretch(1)
+        t_layout.addWidget(self.ocr_btn)
         t_layout.addWidget(self.copy_btn)
         t_layout.addWidget(self.save_btn)
 
@@ -321,22 +395,49 @@ class ImagePreviewDialog(CustomTitleBarWindow):
 
     def setup_canvas(self):
         self.base_pixmap = self.image
-
         self.scene.setSceneRect(0, 0, self.base_pixmap.width(), self.base_pixmap.height())
         self.scene.addPixmap(self.base_pixmap)
+        self.scene.set_base_pixmap(self.base_pixmap)
+
+    def switch_tool(self, tool_name):
+        self.pen_btn.setChecked(tool_name == "pen")
+        self.highlight_btn.setChecked(tool_name == "highlighter")
+        self.rect_btn.setChecked(tool_name == "rectangle")
+        self.blur_btn.setChecked(tool_name == "blur")
+        self.scene.set_tool(tool_name)
 
     def choose_color(self):
         from PyQt6.QtWidgets import QColorDialog
         color = QColorDialog.getColor(self.scene.pen_color, self, "Choose Pen Color")
         if color.isValid():
             self.scene.set_color(color)
-            self.highlight_btn.setChecked(False)
-
-    def toggle_highlighter(self, checked):
-        self.scene.toggle_highlighter(checked)
+            self.color_btn.setStyleSheet(f"background-color: {color.name()}; border-radius: 10px; min-width: 20px; max-width: 20px; min-height: 20px; max-height: 20px; margin: 5px;")
 
     def undo_stroke(self):
         self.scene.undo()
+
+    def extract_text(self):
+        try:
+            import pytesseract
+            from PIL import Image
+            import io
+            
+            final_image = self.get_rendered_image()
+            buffer = io.BytesIO()
+            final_image.toImage().save(buffer, "PNG")
+            
+            pil_img = Image.open(buffer)
+            text = pytesseract.image_to_string(pil_img)
+            
+            if text.strip():
+                QApplication.clipboard().setText(text)
+                
+                original_style = self.ocr_btn.styleSheet()
+                self.ocr_btn.setStyleSheet("background-color: #4CAF50; border-radius: 6px; padding: 10px;")
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(1500, lambda: self.ocr_btn.setStyleSheet(original_style))
+        except ImportError:
+            QMessageBox.warning(self, "Dependencies Missing", "Please install pytesseract and Pillow via pip.")
 
     def get_rendered_image(self):
         pixmap = QPixmap(self.scene.sceneRect().size().toSize())
