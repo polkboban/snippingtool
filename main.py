@@ -17,12 +17,17 @@ from PyQt6.QtGui import (
 )
 
 from PyQt6.QtCore import Qt, QTimer, QSize, QByteArray, pyqtSignal, QThread
+from PyQt6.QtCore import QUrl
+from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
+from PyQt6.QtMultimediaWidgets import QVideoWidget
 
 from snip_modes.rectangle_snip import RectangleSnipOverlay
 from snip_modes.freeform_snip import FreeformSnipOverlay
 from snip_modes.window_snip import WindowSnipOverlay
+from snip_modes.video_snip import VideoSnipOverlay
 
 SVG_ICONS = {
+    "record": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="3" fill="{color}"></circle></svg>""",
     "blur": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M8 12h8"></path><path d="M12 8v8"></path></svg>""",
     "text": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line></svg>""",
     "rect_tool": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>""",
@@ -240,6 +245,83 @@ class AnnotationScene(QGraphicsScene):
             item = self.items_drawn.pop()
             self.removeItem(item)
 
+from PyQt6.QtGui import QLinearGradient
+from PyQt6.QtCore import QThread, pyqtSignal
+
+class ShimmerOverlay(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.offset = -300
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.animate)
+        self.is_animating = False
+        self.hide()
+
+    def start(self):
+        self.show()
+        self.offset = -300
+        self.is_animating = True
+        self.timer.start(16)  # ~60fps for smooth sweeping
+
+    def stop(self):
+        self.hide()
+        self.is_animating = False
+        self.timer.stop()
+
+    def animate(self):
+        self.offset += 15
+        # Loop the animation across the screen
+        if self.offset > self.width() + 300:
+            self.offset = -300
+        self.update()
+
+    def paintEvent(self, event):
+        if not self.is_animating: 
+            return
+            
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        
+        painter.fillRect(self.rect(), QColor(0, 0, 0, 80)) 
+        
+        gradient = QLinearGradient(self.offset, 0, self.offset + 300, self.height())
+        gradient.setColorAt(0.0, QColor(255, 255, 255, 0))
+        gradient.setColorAt(0.4, QColor(0, 0, 0, 150)) # Soft Blue
+        gradient.setColorAt(0.5, QColor(255, 255, 255, 0)) # Bright Core
+        gradient.setColorAt(0.6, QColor(0, 0, 0, 150)) # Soft Purple
+        gradient.setColorAt(1.0, QColor(255, 255, 255, 0))
+        
+        painter.fillRect(self.rect(), gradient)
+
+class OCRWorker(QThread):
+    result_ready = pyqtSignal(str)
+    error_occurred = pyqtSignal(str)
+
+    def __init__(self, byte_array):
+        super().__init__()
+        self.byte_array = byte_array
+
+    def run(self):
+        try:
+            import pytesseract
+            from PIL import Image
+            import io
+            import os
+            
+            tesseract_path = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+            if os.path.exists(tesseract_path):
+                pytesseract.pytesseract.tesseract_cmd = tesseract_path
+            else:
+                self.error_occurred.emit("Tesseract not found at C:\\Program Files\\Tesseract-OCR\\tesseract.exe")
+                return
+            
+            pil_img = Image.open(io.BytesIO(self.byte_array.data()))
+            text = pytesseract.image_to_string(pil_img)
+            self.result_ready.emit(text)
+        except Exception as e:
+            self.error_occurred.emit(str(e))
+
 class ImagePreviewDialog(CustomTitleBarWindow):
     def __init__(self, image, dark_mode=False, parent=None):
         super().__init__(dark_mode=dark_mode, parent=parent)
@@ -384,6 +466,9 @@ class ImagePreviewDialog(CustomTitleBarWindow):
         self.view.setRenderHint(QPainter.RenderHint.Antialiasing)
         self.view.setStyleSheet("background: transparent; border: none;")
         
+        self.view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        
         shadow = QGraphicsDropShadowEffect()
         shadow.setBlurRadius(20)
         shadow.setColor(QColor(0, 0, 0, 120))
@@ -392,6 +477,19 @@ class ImagePreviewDialog(CustomTitleBarWindow):
 
         c_layout.addWidget(self.view)
         main_layout.addWidget(self.canvas_container, 1)
+
+        self.toast_label = QLabel(self)
+        self.toast_label.setStyleSheet("""
+            background-color: #303030; 
+            color: white; 
+            border-radius: 6px; 
+            padding: 8px 16px; 
+            font-weight: 600;
+            font-size: 14px;
+        """)
+        self.toast_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.toast_label.hide()
+        self.shimmer = ShimmerOverlay(self.view)
 
     def setup_canvas(self):
         self.base_pixmap = self.image
@@ -417,27 +515,35 @@ class ImagePreviewDialog(CustomTitleBarWindow):
         self.scene.undo()
 
     def extract_text(self):
-        try:
-            import pytesseract
-            from PIL import Image
-            import io
-            
-            final_image = self.get_rendered_image()
-            buffer = io.BytesIO()
-            final_image.toImage().save(buffer, "PNG")
-            
-            pil_img = Image.open(buffer)
-            text = pytesseract.image_to_string(pil_img)
-            
-            if text.strip():
-                QApplication.clipboard().setText(text)
-                
-                original_style = self.ocr_btn.styleSheet()
-                self.ocr_btn.setStyleSheet("background-color: #4CAF50; border-radius: 6px; padding: 10px;")
-                from PyQt6.QtCore import QTimer
-                QTimer.singleShot(1500, lambda: self.ocr_btn.setStyleSheet(original_style))
-        except ImportError:
-            QMessageBox.warning(self, "Dependencies Missing", "Please install pytesseract and Pillow via pip.")
+        self.ocr_btn.setEnabled(False)
+        self.shimmer.start()
+
+        from PyQt6.QtCore import QByteArray, QBuffer, QIODevice
+        final_image = self.get_rendered_image()
+        byte_array = QByteArray()
+        buffer = QBuffer(byte_array)
+        buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+        final_image.save(buffer, "PNG")
+
+        self.ocr_thread = OCRWorker(byte_array)
+        self.ocr_thread.result_ready.connect(self.on_ocr_complete)
+        self.ocr_thread.error_occurred.connect(self.on_ocr_error)
+        self.ocr_thread.start()
+
+    def on_ocr_complete(self, text):
+        self.shimmer.stop()
+        self.ocr_btn.setEnabled(True)
+        
+        if text.strip():
+            QApplication.clipboard().setText(text)
+            self.show_toast("Text copied to clipboard!")
+        else:
+            QMessageBox.information(self, "No Text Found", "Could not detect any text in this snip.")
+
+    def on_ocr_error(self, error_msg):
+        self.shimmer.stop()
+        self.ocr_btn.setEnabled(True)
+        QMessageBox.warning(self, "OCR Error", error_msg)
 
     def get_rendered_image(self):
         pixmap = QPixmap(self.scene.sceneRect().size().toSize())
@@ -462,9 +568,35 @@ class ImagePreviewDialog(CustomTitleBarWindow):
         from PyQt6.QtCore import QTimer
         QTimer.singleShot(1200, self.close)
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.view.fitInView(self.scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
+        if hasattr(self, 'shimmer'):
+            self.shimmer.resize(self.view.size())
+
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self.view.fitInView(self.scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
+        if hasattr(self, 'shimmer'):
+            self.shimmer.resize(self.view.size())
+
+    def show_toast(self, message):
+        self.toast_label.setText(message)
+        self.toast_label.adjustSize()
+        
+        from PyQt6.QtCore import QPoint
+        btn_pos = self.ocr_btn.mapTo(self, QPoint(0, 0))
+        
+        x = btn_pos.x() - self.toast_label.width() - 15 
+        
+        y = btn_pos.y() + int((self.ocr_btn.height() - self.toast_label.height()) / 2)
+        
+        self.toast_label.move(x, y)
+        self.toast_label.show()
+        self.toast_label.raise_()
+        
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(2000, self.toast_label.hide)
 
 class GlobalHotkeyThread(QThread):
     trigger_snip = pyqtSignal()
@@ -476,6 +608,136 @@ class GlobalHotkeyThread(QThread):
     def emit_trigger(self):
         self.trigger_snip.emit()
 
+import cv2
+from PyQt6.QtCore import QTimer
+from PyQt6.QtGui import QImage
+
+class VideoPreviewDialog(CustomTitleBarWindow):
+    def __init__(self, video_path, dark_mode=False, parent=None):
+        super().__init__(dark_mode=dark_mode, parent=parent)
+        self.setWindowModality(Qt.WindowModality.ApplicationModal)
+        self.setWindowTitle("Snipping Tool - Video Preview")
+        self.resize(1000, 700)
+        
+        self.video_path = video_path
+        self.dark_mode = dark_mode
+        self.is_playing = True
+        
+        self.cap = cv2.VideoCapture(self.video_path)
+        self.fps = self.cap.get(cv2.CAP_PROP_FPS) or 20.0
+        
+        self.setup_ui()
+        
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update_frame)
+        self.timer.start(int(1000 / self.fps))
+
+    def setup_ui(self):
+        main_layout = QVBoxLayout(self.content)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        toolbar = QWidget()
+        toolbar.setFixedHeight(55)
+        t_layout = QHBoxLayout(toolbar)
+        t_layout.setContentsMargins(15, 0, 15, 0)
+
+        btn_style = f"""
+            QPushButton {{
+                background: transparent;
+                border: none;
+                border-radius: 6px;
+                padding: 10px;
+                color: {"#ffffff" if self.dark_mode else "#000000"};
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: {"#383838" if self.dark_mode else "#e0e0e0"};
+            }}
+        """
+
+        self.play_btn = QPushButton("⏸ Pause")
+        self.play_btn.setStyleSheet(btn_style)
+        self.play_btn.clicked.connect(self.toggle_playback)
+
+        self.save_btn = QPushButton("💾 Save Video As...")
+        self.save_btn.setStyleSheet(btn_style)
+        self.save_btn.clicked.connect(self.save_video)
+
+        t_layout.addWidget(self.play_btn)
+        t_layout.addStretch(1)
+        t_layout.addWidget(self.save_btn)
+
+        main_layout.addWidget(toolbar)
+
+        divider = QFrame()
+        divider.setFrameShape(QFrame.Shape.HLine)
+        divider.setStyleSheet(f"background-color: {'#3a3a3a' if self.dark_mode else '#e0e0e0'};")
+        divider.setFixedHeight(1)
+        main_layout.addWidget(divider)
+
+        bg_color = '#141414' if self.dark_mode else '#e5e5e5'
+        self.player_container = QWidget()
+        self.player_container.setStyleSheet(f"background-color: {bg_color}; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px;")
+        
+        p_layout = QVBoxLayout(self.player_container)
+        p_layout.setContentsMargins(40, 40, 40, 40)
+
+        self.video_label = QLabel()
+        self.video_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        shadow = QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(20)
+        shadow.setColor(QColor(0, 0, 0, 120))
+        shadow.setOffset(0, 4)
+        self.video_label.setGraphicsEffect(shadow)
+        
+        p_layout.addWidget(self.video_label)
+        main_layout.addWidget(self.player_container, 1)
+
+    def update_frame(self):
+        if not self.is_playing:
+            return
+            
+        ret, frame = self.cap.read()
+        
+        if not ret:
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            ret, frame = self.cap.read()
+            
+        if ret:
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            h, w, ch = frame.shape
+            bytes_per_line = ch * w
+            
+            qimg = QImage(frame.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
+            pixmap = QPixmap.fromImage(qimg)
+            
+            self.video_label.setPixmap(pixmap.scaled(
+                self.video_label.size(), 
+                Qt.AspectRatioMode.KeepAspectRatio, 
+                Qt.TransformationMode.SmoothTransformation
+            ))
+
+    def toggle_playback(self):
+        self.is_playing = not self.is_playing
+        self.play_btn.setText("⏸ Pause" if self.is_playing else "▶ Play")
+
+    def save_video(self):
+        import shutil
+        path, _ = QFileDialog.getSaveFileName(self, "Save Video", "", "MP4 Files (*.mp4)")
+        if path:
+            self.is_playing = False
+            self.timer.stop()
+            self.cap.release()
+            shutil.copy(self.video_path, path)
+            self.close()
+
+    def closeEvent(self, event):
+        self.timer.stop()
+        self.cap.release()
+        super().closeEvent(event)
+
 class SnippingToolGUI(CustomTitleBarWindow):
     def __init__(self, dark_mode=False):
         super().__init__(dark_mode=dark_mode)
@@ -486,7 +748,7 @@ class SnippingToolGUI(CustomTitleBarWindow):
         self.resize(620, 300)
         self.setMinimumSize(520, 300)
 
-        self.snip_modes = ["Rectangle mode", "Free-form mode", "Window mode", "Fullscreen mode"]
+        self.snip_modes = ["Rectangle mode", "Free-form mode", "Window mode", "Fullscreen mode", "Record mode"]
         self.delays = ["No delay", "3 seconds", "5 seconds", "10 seconds"]
         self.current_mode = self.snip_modes[0]
         self.current_delay_sec = 0
@@ -545,6 +807,18 @@ class SnippingToolGUI(CustomTitleBarWindow):
         main_layout.addWidget(toolbar)
         main_layout.addWidget(placeholder, 1)
 
+        self.toast_label = QLabel(self)
+        self.toast_label.setStyleSheet("""
+            background-color: #4CAF50; 
+            color: white; 
+            border-radius: 6px; 
+            padding: 8px 16px; 
+            font-weight: 600;
+            font-size: 14px;
+        """)
+        self.toast_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents) # Let clicks pass through
+        self.toast_label.hide()
+
     def update_mode_button(self):
         icon_name = self.current_mode.split(' ')[0].lower()
         self.mode_btn.setText(f" {self.current_mode}")
@@ -564,7 +838,8 @@ class SnippingToolGUI(CustomTitleBarWindow):
             "Rectangle mode": "rectangle",
             "Free-form mode": "free-form",
             "Window mode": "window",
-            "Fullscreen mode": "fullscreen"
+            "Fullscreen mode": "fullscreen",
+            "Record mode": "record" 
         }
         
         for text, icon_name in actions.items():
@@ -612,9 +887,18 @@ class SnippingToolGUI(CustomTitleBarWindow):
             self.snip_overlay.snip_completed.connect(self.show_preview)
         elif "Fullscreen" in self.current_mode:
             QTimer.singleShot(self.current_delay_sec * 1000, self.capture_fullscreen)
+        elif "Record" in self.current_mode:
+            self.snip_overlay = VideoSnipOverlay()
+            self.snip_overlay.recording_completed.connect(self.video_saved)
         else:
             QMessageBox.information(self, "Coming Soon", f"{self.current_mode} not implemented.")
             self.show()
+    
+    def video_saved(self, filepath):
+        if filepath:
+            self.preview_window = VideoPreviewDialog(filepath, dark_mode=self.dark_mode, parent=self)
+            self.preview_window.show()
+        self.show()
 
     def capture_fullscreen(self):
         screen = QApplication.primaryScreen()
