@@ -2,14 +2,15 @@ import sys
 import platform
 import winreg
 import keyboard
+import pywinstyles
 
 from PyQt6.QtSvg import QSvgRenderer
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QMenu, QMessageBox, QDialog,
-    QDialogButtonBox, QFileDialog, QGraphicsDropShadowEffect, QFrame, QSizeGrip,
-    QGraphicsView, QGraphicsScene, QColorDialog 
+    QDialogButtonBox, QFileDialog, QFrame,
+    QGraphicsView, QGraphicsScene, QColorDialog, QGraphicsDropShadowEffect 
 )
 from PyQt6.QtGui import (
     QPixmap, QColor, QFont, QIcon, QPainter, QAction,
@@ -27,6 +28,7 @@ from snip_modes.window_snip import WindowSnipOverlay
 from snip_modes.video_snip import VideoSnipOverlay
 
 SVG_ICONS = {
+    
     "record": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="3" fill="{color}"></circle></svg>""",
     "blur": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M8 12h8"></path><path d="M12 8v8"></path></svg>""",
     "text": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line></svg>""",
@@ -68,92 +70,7 @@ def is_dark_mode():
             return False
     return False
 
-class CustomTitleBarWindow(QMainWindow):
-    def __init__(self, dark_mode=False, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
-        self.main_wrapper = QWidget()
-        self.main_wrapper.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        main_layout = QVBoxLayout(self.main_wrapper)
-        main_layout.setContentsMargins(35, 35, 35, 35)
-        self.setCentralWidget(self.main_wrapper)
-
-        self.container = QWidget(self)
-        self.container.setObjectName("mainContainer")
-        main_layout.addWidget(self.container)
-
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(35)
-        shadow.setXOffset(0)
-        shadow.setYOffset(0)
-        shadow.setColor(QColor(0, 0, 0, 100 if dark_mode else 80))
-        self.container.setGraphicsEffect(shadow)
-
-        self.v_layout = QVBoxLayout(self.container)
-        self.v_layout.setContentsMargins(1, 1, 1, 1)
-        self.v_layout.setSpacing(0)
-
-        self.title_bar = QWidget()
-        self.title_bar.setObjectName("titleBar")
-        self.title_bar.setFixedHeight(40)
-        self.title_bar.mouseDoubleClickEvent = self.toggle_maximize
-        title_layout = QHBoxLayout(self.title_bar)
-        title_layout.setContentsMargins(15, 0, 5, 0)
-
-        self.title_label = QLabel(self.windowTitle())
-        self.title_label.setObjectName("titleLabel")
-        title_layout.addWidget(self.title_label)
-        title_layout.addStretch()
-
-        self.min_btn = QPushButton("—")
-        self.min_btn.setObjectName("titleButton")
-        self.min_btn.clicked.connect(self.showMinimized)
-        title_layout.addWidget(self.min_btn)
-        
-        self.max_btn = QPushButton("🗖")
-        self.max_btn.setObjectName("titleButton")
-        self.max_btn.clicked.connect(self.toggle_maximize)
-        title_layout.addWidget(self.max_btn)
-
-        self.close_btn = QPushButton("✕")
-        self.close_btn.setObjectName("titleButton")
-        self.close_btn.setProperty("id", "closeButton")
-        self.close_btn.clicked.connect(self.close)
-        title_layout.addWidget(self.close_btn)
-
-        self.v_layout.addWidget(self.title_bar)
-
-        self.content = QWidget()
-        self.v_layout.addWidget(self.content)
-        
-        self.grip = QSizeGrip(self.container)
-        self.grip.setStyleSheet("background-color: transparent;")
-        self.v_layout.addWidget(self.grip, 0, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
-
-    def toggle_maximize(self, event=None):
-        if self.isMaximized():
-            self.showNormal()
-            self.main_wrapper.layout().setContentsMargins(35, 35, 35, 35)
-        else:
-            self.showMaximized()
-            self.main_wrapper.layout().setContentsMargins(0, 0, 0, 0)
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton and event.position().y() < (self.title_bar.height() + 35):
-            self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
-            event.accept()
-
-    def mouseMoveEvent(self, event):
-        if hasattr(self, "_drag_pos") and event.buttons() == Qt.MouseButton.LeftButton:
-            self.move(event.globalPosition().toPoint() - self._drag_pos)
-            event.accept()
-
-    def setWindowTitle(self, title):
-        super().setWindowTitle(title)
-        if hasattr(self, 'title_label'):
-            self.title_label.setText(title)
 
 class AnnotationScene(QGraphicsScene):
     def __init__(self, parent=None):
@@ -322,9 +239,9 @@ class OCRWorker(QThread):
         except Exception as e:
             self.error_occurred.emit(str(e))
 
-class ImagePreviewDialog(CustomTitleBarWindow):
+class ImagePreviewDialog(QMainWindow):
     def __init__(self, image, dark_mode=False, parent=None):
-        super().__init__(dark_mode=dark_mode, parent=parent)
+        super().__init__(parent=parent)
         self.setWindowModality(Qt.WindowModality.ApplicationModal)
         self.setWindowTitle("Snipping Tool")
         self.resize(1000, 700)
@@ -333,19 +250,30 @@ class ImagePreviewDialog(CustomTitleBarWindow):
         self.dark_mode = dark_mode
         self.icon_color = "#ffffff" if dark_mode else "#000000"
 
+        # --- PYWINSTYLES MAGIC ---
+        pywinstyles.apply_style(self, "mica")
+        header_color = "#1f1f1f" if dark_mode else "#f3f3f3"
+        pywinstyles.change_header_color(self, header_color)
+        if dark_mode:
+            pywinstyles.apply_style(self, "dark")
+        # -------------------------
+
+        self.central_widget = QWidget()
+        self.central_widget.setObjectName("dialogContainer")
+        self.setCentralWidget(self.central_widget)
+
         self.setup_ui()
         self.setup_canvas()
 
         self.copy_shortcut = QShortcut(QKeySequence("Ctrl+C"), self)
         self.copy_shortcut.activated.connect(self.copy_to_clipboard)
-
         self.save_shortcut = QShortcut(QKeySequence("Ctrl+S"), self)
         self.save_shortcut.activated.connect(self.save_image)
 
     def setup_ui(self):
-        main_layout = QVBoxLayout(self.content)
+        main_layout = QVBoxLayout(self.central_widget)
         main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
+        # ... (The rest of your setup_ui stays exactly the same!)
 
         toolbar = QWidget()
         toolbar.setFixedHeight(55)
@@ -612,9 +540,9 @@ import cv2
 from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QImage
 
-class VideoPreviewDialog(CustomTitleBarWindow):
+class VideoPreviewDialog(QMainWindow): # <-- Changed to QMainWindow
     def __init__(self, video_path, dark_mode=False, parent=None):
-        super().__init__(dark_mode=dark_mode, parent=parent)
+        super().__init__(parent=parent) # <-- Updated super() call
         self.setWindowModality(Qt.WindowModality.ApplicationModal)
         self.setWindowTitle("Snipping Tool - Video Preview")
         self.resize(1000, 700)
@@ -622,18 +550,41 @@ class VideoPreviewDialog(CustomTitleBarWindow):
         self.video_path = video_path
         self.dark_mode = dark_mode
         self.is_playing = True
+
+        # --- PYWINSTYLES MAGIC ---
+        import pywinstyles
+        pywinstyles.apply_style(self, "mica")
+        header_color = "#1f1f1f" if dark_mode else "#f3f3f3"
+        pywinstyles.change_header_color(self, header_color)
+        if dark_mode:
+            pywinstyles.apply_style(self, "dark")
+        # -------------------------
         
+        # Create central widget for QMainWindow
+        self.central_widget = QWidget()
+        self.central_widget.setObjectName("dialogContainer")
+        self.setCentralWidget(self.central_widget)
+        
+        # Initialize OpenCV Video Capture
+        import cv2
         self.cap = cv2.VideoCapture(self.video_path)
         self.fps = self.cap.get(cv2.CAP_PROP_FPS) or 20.0
         
         self.setup_ui()
         
+        # Setup playback timer
+        from PyQt6.QtCore import QTimer
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_frame)
         self.timer.start(int(1000 / self.fps))
 
     def setup_ui(self):
-        main_layout = QVBoxLayout(self.content)
+        # Attach layout to self.central_widget instead of self.content
+        from PyQt6.QtWidgets import QVBoxLayout, QWidget, QHBoxLayout, QPushButton, QFrame, QLabel, QGraphicsDropShadowEffect, QFileDialog
+        from PyQt6.QtGui import QColor, QPixmap, QImage
+        from PyQt6.QtCore import Qt
+        
+        main_layout = QVBoxLayout(self.central_widget)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
@@ -676,9 +627,9 @@ class VideoPreviewDialog(CustomTitleBarWindow):
         divider.setFixedHeight(1)
         main_layout.addWidget(divider)
 
-        bg_color = '#141414' if self.dark_mode else '#e5e5e5'
+        bg_color = 'transparent' # Let Mica show through
         self.player_container = QWidget()
-        self.player_container.setStyleSheet(f"background-color: {bg_color}; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px;")
+        self.player_container.setStyleSheet(f"background-color: {bg_color};")
         
         p_layout = QVBoxLayout(self.player_container)
         p_layout.setContentsMargins(40, 40, 40, 40)
@@ -686,6 +637,7 @@ class VideoPreviewDialog(CustomTitleBarWindow):
         self.video_label = QLabel()
         self.video_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
+        # We can keep the shadow on the video itself, it looks nice!
         shadow = QGraphicsDropShadowEffect()
         shadow.setBlurRadius(20)
         shadow.setColor(QColor(0, 0, 0, 120))
@@ -699,6 +651,10 @@ class VideoPreviewDialog(CustomTitleBarWindow):
         if not self.is_playing:
             return
             
+        import cv2
+        from PyQt6.QtGui import QImage, QPixmap
+        from PyQt6.QtCore import Qt
+        
         ret, frame = self.cap.read()
         
         if not ret:
@@ -725,6 +681,7 @@ class VideoPreviewDialog(CustomTitleBarWindow):
 
     def save_video(self):
         import shutil
+        from PyQt6.QtWidgets import QFileDialog
         path, _ = QFileDialog.getSaveFileName(self, "Save Video", "", "MP4 Files (*.mp4)")
         if path:
             self.is_playing = False
@@ -738,9 +695,9 @@ class VideoPreviewDialog(CustomTitleBarWindow):
         self.cap.release()
         super().closeEvent(event)
 
-class SnippingToolGUI(CustomTitleBarWindow):
+class SnippingToolGUI(QMainWindow):
     def __init__(self, dark_mode=False):
-        super().__init__(dark_mode=dark_mode)
+        super().__init__()
         self.dark_mode = dark_mode
         self.icon_color = "#ffffff" if dark_mode else "#000000"
 
@@ -748,10 +705,28 @@ class SnippingToolGUI(CustomTitleBarWindow):
         self.resize(620, 300)
         self.setMinimumSize(520, 300)
 
-        self.snip_modes = ["Rectangle mode", "Free-form mode", "Window mode", "Fullscreen mode", "Record mode"]
+        # --- PYWINSTYLES MAGIC ---
+        # 1. Apply Mica backdrop to the window
+        pywinstyles.apply_style(self, "mica")
+        
+        # 2. Color the native Windows title bar to match our theme perfectly
+        header_color = "#1f1f1f" if dark_mode else "#f3f3f3"
+        pywinstyles.change_header_color(self, header_color)
+        
+        # 3. Force dark mode text on the title bar if needed
+        if dark_mode:
+            pywinstyles.apply_style(self, "dark")
+        # -------------------------
+
+        self.snip_modes = ["Rectangle mode", "Free-form mode", "Window mode", "Fullscreen mode"]
         self.delays = ["No delay", "3 seconds", "5 seconds", "10 seconds"]
         self.current_mode = self.snip_modes[0]
         self.current_delay_sec = 0
+        
+        # Create central widget for QMainWindow
+        self.central_widget = QWidget()
+        self.central_widget.setObjectName("mainContainer")
+        self.setCentralWidget(self.central_widget)
         
         self.setup_ui()
 
@@ -760,8 +735,9 @@ class SnippingToolGUI(CustomTitleBarWindow):
         self.hotkey_thread.start()
 
     def setup_ui(self):
-        main_layout = QVBoxLayout(self.content)
-        main_layout.setContentsMargins(12, 8, 12, 0)
+        # Attach the layout to the central_widget instead of self.content
+        main_layout = QVBoxLayout(self.central_widget)
+        main_layout.setContentsMargins(12, 12, 12, 12)
         main_layout.setSpacing(10)
         
         toolbar = QWidget()
@@ -920,30 +896,9 @@ QWidget {
     font-size: 14px;
 }
 #mainContainer, #dialogContainer {
-    background-color: #1f1f1f;
-    border: 1px solid #3a3a3a;
-    border-radius: 8px;
-}
-#titleBar {
-    background-color: #1f1f1f;
-    border-top-left-radius: 8px;
-    border-top-right-radius: 8px;
-}
-#titleLabel {
-    color: #f0f0f0; 
-    font-weight: 600;
-}
-#titleButton {
-    background-color: transparent;
+    background-color: transparent; /* Let Mica show through */
     border: none;
-    min-width: 40px;
-    height: 40px;
-    font-size: 12px;
 }
-#titleButton:hover { background-color: #383838; }
-#closeButton:hover { background-color: #E81123; }
-#maxButton:hover { background-color: #383838; }
-
 #newButton {
     background-color: #D72828;
     border: 1px solid #6B6B6B;
