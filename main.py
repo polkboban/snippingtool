@@ -5,22 +5,16 @@ import keyboard
 import pywinstyles
 
 from PyQt6.QtSvg import QSvgRenderer
-
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QMenu, QMessageBox, QDialog,
-    QDialogButtonBox, QFileDialog, QFrame,
-    QGraphicsView, QGraphicsScene, QColorDialog, QGraphicsDropShadowEffect 
+    QPushButton, QLabel, QMenu, QMessageBox, QFileDialog, QFrame,
+    QGraphicsView, QGraphicsScene, QGraphicsDropShadowEffect, QStackedWidget
 )
 from PyQt6.QtGui import (
     QPixmap, QColor, QFont, QIcon, QPainter, QAction,
-    QPainterPath, QPen, QShortcut, QKeySequence 
+    QPainterPath, QPen, QShortcut, QKeySequence, QLinearGradient
 )
-
 from PyQt6.QtCore import Qt, QTimer, QSize, QByteArray, pyqtSignal, QThread
-from PyQt6.QtCore import QUrl
-from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
-from PyQt6.QtMultimediaWidgets import QVideoWidget
 
 from snip_modes.rectangle_snip import RectangleSnipOverlay
 from snip_modes.freeform_snip import FreeformSnipOverlay
@@ -28,7 +22,6 @@ from snip_modes.window_snip import WindowSnipOverlay
 from snip_modes.video_snip import VideoSnipOverlay
 
 SVG_ICONS = {
-    
     "record": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="3" fill="{color}"></circle></svg>""",
     "blur": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M8 12h8"></path><path d="M12 8v8"></path></svg>""",
     "text": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line></svg>""",
@@ -61,16 +54,12 @@ def is_dark_mode():
     if platform.system() == "Windows":
         try:
             reg = winreg.ConnectRegistry(None, winreg.HKEY_CURRENT_USER)
-            key = winreg.OpenKey(
-                reg, r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
-            )
+            key = winreg.OpenKey(reg, r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize")
             value, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
             return value == 0
         except Exception:
             return False
     return False
-
-
 
 class AnnotationScene(QGraphicsScene):
     def __init__(self, parent=None):
@@ -110,7 +99,6 @@ class AnnotationScene(QGraphicsScene):
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             self.start_pos = event.scenePos()
-            
             if self.current_tool in ["pen", "highlighter"]:
                 self.current_path = QPainterPath(self.start_pos)
                 self.current_path_item = self.addPath(self.current_path, self.current_pen)
@@ -120,7 +108,6 @@ class AnnotationScene(QGraphicsScene):
                 self.current_shape_item = self.addRect(QRectF(self.start_pos, self.start_pos), self.current_pen)
                 if self.current_tool == "rectangle":
                     self.items_drawn.append(self.current_shape_item)
-                
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
@@ -151,7 +138,6 @@ class AnnotationScene(QGraphicsScene):
                     blur_item.setPos(float(rect.x()), float(rect.y()))
                     self.addItem(blur_item)
                     self.items_drawn.append(blur_item)
-            
             self.current_path_item = None
             self.current_path = None
             self.current_shape_item = None
@@ -161,9 +147,6 @@ class AnnotationScene(QGraphicsScene):
         if self.items_drawn:
             item = self.items_drawn.pop()
             self.removeItem(item)
-
-from PyQt6.QtGui import QLinearGradient
-from PyQt6.QtCore import QThread, pyqtSignal
 
 class ShimmerOverlay(QWidget):
     def __init__(self, parent=None):
@@ -179,7 +162,7 @@ class ShimmerOverlay(QWidget):
         self.show()
         self.offset = -300
         self.is_animating = True
-        self.timer.start(16)  # ~60fps for smooth sweeping
+        self.timer.start(16)
 
     def stop(self):
         self.hide()
@@ -188,27 +171,21 @@ class ShimmerOverlay(QWidget):
 
     def animate(self):
         self.offset += 15
-        # Loop the animation across the screen
         if self.offset > self.width() + 300:
             self.offset = -300
         self.update()
 
     def paintEvent(self, event):
-        if not self.is_animating: 
-            return
-            
+        if not self.is_animating: return
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        
         painter.fillRect(self.rect(), QColor(0, 0, 0, 80)) 
-        
         gradient = QLinearGradient(self.offset, 0, self.offset + 300, self.height())
         gradient.setColorAt(0.0, QColor(255, 255, 255, 0))
-        gradient.setColorAt(0.4, QColor(0, 0, 0, 150)) # Soft Blue
-        gradient.setColorAt(0.5, QColor(255, 255, 255, 0)) # Bright Core
-        gradient.setColorAt(0.6, QColor(0, 0, 0, 150)) # Soft Purple
+        gradient.setColorAt(0.4, QColor(0, 0, 0, 150))
+        gradient.setColorAt(0.5, QColor(255, 255, 255, 0))
+        gradient.setColorAt(0.6, QColor(0, 0, 0, 150))
         gradient.setColorAt(1.0, QColor(255, 255, 255, 0))
-        
         painter.fillRect(self.rect(), gradient)
 
 class OCRWorker(QThread):
@@ -239,310 +216,118 @@ class OCRWorker(QThread):
         except Exception as e:
             self.error_occurred.emit(str(e))
 
-class ImagePreviewDialog(QMainWindow):
-    def __init__(self, image, dark_mode=False, parent=None):
-        super().__init__(parent=parent)
-        self.setWindowModality(Qt.WindowModality.ApplicationModal)
-        self.setWindowTitle("Snipping Tool")
-        self.resize(1000, 700)
-        
-        self.image = image
-        self.dark_mode = dark_mode
-        self.icon_color = "#ffffff" if dark_mode else "#000000"
-
-        # --- PYWINSTYLES MAGIC ---
-        pywinstyles.apply_style(self, "mica")
-        header_color = "#1f1f1f" if dark_mode else "#f3f3f3"
-        pywinstyles.change_header_color(self, header_color)
-        if dark_mode:
-            pywinstyles.apply_style(self, "dark")
-        # -------------------------
-
-        self.central_widget = QWidget()
-        self.central_widget.setObjectName("dialogContainer")
-        self.setCentralWidget(self.central_widget)
-
-        self.setup_ui()
-        self.setup_canvas()
-
-        self.copy_shortcut = QShortcut(QKeySequence("Ctrl+C"), self)
-        self.copy_shortcut.activated.connect(self.copy_to_clipboard)
-        self.save_shortcut = QShortcut(QKeySequence("Ctrl+S"), self)
-        self.save_shortcut.activated.connect(self.save_image)
-
-    def setup_ui(self):
-        main_layout = QVBoxLayout(self.central_widget)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        # ... (The rest of your setup_ui stays exactly the same!)
-
-        toolbar = QWidget()
-        toolbar.setFixedHeight(55)
-        t_layout = QHBoxLayout(toolbar)
-        t_layout.setContentsMargins(15, 0, 15, 0)
-        t_layout.setSpacing(5)
-
-        btn_style = f"""
-            QPushButton {{
-                background: transparent;
-                border: none;
-                border-radius: 6px;
-                padding: 10px;
-            }}
-            QPushButton:hover {{
-                background-color: {"#383838" if self.dark_mode else "#e0e0e0"};
-            }}
-            QPushButton:checked {{
-                background-color: {"#4a4a4a" if self.dark_mode else "#d0d0d0"};
-                border-bottom: 3px solid {"#0078d4" if not self.dark_mode else "#4cc2ff"};
-            }}
-        """
-
-        self.pen_btn = QPushButton()
-        self.pen_btn.setIcon(create_svg_icon("pen", self.icon_color))
-        self.pen_btn.setIconSize(QSize(20, 20))
-        self.pen_btn.setCheckable(True)
-        self.pen_btn.setChecked(True)
-        self.pen_btn.setToolTip("Pen Color")
-        self.pen_btn.setStyleSheet(btn_style)
-        self.pen_btn.clicked.connect(lambda: self.switch_tool("pen"))
-
-        self.highlight_btn = QPushButton()
-        self.highlight_btn.setIcon(create_svg_icon("highlighter", self.icon_color))
-        self.highlight_btn.setIconSize(QSize(20, 20))
-        self.highlight_btn.setCheckable(True)
-        self.highlight_btn.setToolTip("Highlighter")
-        self.highlight_btn.setStyleSheet(btn_style)
-        self.highlight_btn.clicked.connect(lambda: self.switch_tool("highlighter"))
-
-        self.rect_btn = QPushButton()
-        self.rect_btn.setIcon(create_svg_icon("rect_tool", self.icon_color))
-        self.rect_btn.setIconSize(QSize(20, 20))
-        self.rect_btn.setCheckable(True)
-        self.rect_btn.setToolTip("Rectangle")
-        self.rect_btn.setStyleSheet(btn_style)
-        self.rect_btn.clicked.connect(lambda: self.switch_tool("rectangle"))
-
-        self.blur_btn = QPushButton()
-        self.blur_btn.setIcon(create_svg_icon("blur", self.icon_color))
-        self.blur_btn.setIconSize(QSize(20, 20))
-        self.blur_btn.setCheckable(True)
-        self.blur_btn.setToolTip("Pixelate Area")
-        self.blur_btn.setStyleSheet(btn_style)
-        self.blur_btn.clicked.connect(lambda: self.switch_tool("blur"))
-
-        self.color_btn = QPushButton()
-        self.color_btn.setStyleSheet(f"background-color: #ff0000; border-radius: 10px; min-width: 20px; max-width: 20px; min-height: 20px; max-height: 20px; margin: 5px;")
-        self.color_btn.clicked.connect(self.choose_color)
-
-        self.undo_btn = QPushButton()
-        self.undo_btn.setIcon(create_svg_icon("undo", self.icon_color))
-        self.undo_btn.setIconSize(QSize(20, 20))
-        self.undo_btn.setToolTip("Undo")
-        self.undo_btn.setStyleSheet(btn_style)
-        self.undo_btn.clicked.connect(self.undo_stroke)
-
-        self.ocr_btn = QPushButton()
-        self.ocr_btn.setIcon(create_svg_icon("text", self.icon_color))
-        self.ocr_btn.setIconSize(QSize(20, 20))
-        self.ocr_btn.setToolTip("Extract Text (OCR)")
-        self.ocr_btn.setStyleSheet(btn_style)
-        self.ocr_btn.clicked.connect(self.extract_text)
-
-        self.copy_btn = QPushButton()
-        self.copy_btn.setIcon(create_svg_icon("copy", self.icon_color))
-        self.copy_btn.setIconSize(QSize(20, 20))
-        self.copy_btn.setToolTip("Copy (Ctrl+C)")
-        self.copy_btn.setStyleSheet(btn_style)
-        self.copy_btn.clicked.connect(self.copy_to_clipboard)
-
-        self.save_btn = QPushButton()
-        self.save_btn.setIcon(create_svg_icon("save", self.icon_color))
-        self.save_btn.setIconSize(QSize(20, 20))
-        self.save_btn.setToolTip("Save as (Ctrl+S)")
-        self.save_btn.setStyleSheet(btn_style)
-        self.save_btn.clicked.connect(self.save_image)
-
-        t_layout.addSpacing(20)
-        t_layout.addWidget(self.pen_btn)
-        t_layout.addWidget(self.highlight_btn)
-        t_layout.addWidget(self.rect_btn)
-        t_layout.addWidget(self.blur_btn)
-        t_layout.addWidget(self.color_btn)
-        t_layout.addWidget(self.undo_btn)
-        t_layout.addStretch(1)
-        t_layout.addWidget(self.ocr_btn)
-        t_layout.addWidget(self.copy_btn)
-        t_layout.addWidget(self.save_btn)
-
-        main_layout.addWidget(toolbar)
-
-        divider = QFrame()
-        divider.setFrameShape(QFrame.Shape.HLine)
-        divider.setStyleSheet(f"background-color: {'#3a3a3a' if self.dark_mode else '#e0e0e0'};")
-        divider.setFixedHeight(1)
-        main_layout.addWidget(divider)
-
-        bg_color = '#141414' if self.dark_mode else '#e5e5e5'
-        self.canvas_container = QWidget()
-        self.canvas_container.setStyleSheet(f"background-color: {bg_color}; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px;")
-        
-        c_layout = QVBoxLayout(self.canvas_container)
-        c_layout.setContentsMargins(40, 40, 40, 40)
-
-        self.scene = AnnotationScene(self)
-        self.view = QGraphicsView(self.scene)
-        self.view.setRenderHint(QPainter.RenderHint.Antialiasing)
-        self.view.setStyleSheet("background: transparent; border: none;")
-        
-        self.view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        
-        shadow = QGraphicsDropShadowEffect()
-        shadow.setBlurRadius(20)
-        shadow.setColor(QColor(0, 0, 0, 120))
-        shadow.setOffset(0, 4)
-        self.view.setGraphicsEffect(shadow)
-
-        c_layout.addWidget(self.view)
-        main_layout.addWidget(self.canvas_container, 1)
-
-        self.toast_label = QLabel(self)
-        self.toast_label.setStyleSheet("""
-            background-color: #303030; 
-            color: white; 
-            border-radius: 6px; 
-            padding: 8px 16px; 
-            font-weight: 600;
-            font-size: 14px;
-        """)
-        self.toast_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self.toast_label.hide()
-        self.shimmer = ShimmerOverlay(self.view)
-
-    def setup_canvas(self):
-        self.base_pixmap = self.image
-        self.scene.setSceneRect(0, 0, self.base_pixmap.width(), self.base_pixmap.height())
-        self.scene.addPixmap(self.base_pixmap)
-        self.scene.set_base_pixmap(self.base_pixmap)
-
-    def switch_tool(self, tool_name):
-        self.pen_btn.setChecked(tool_name == "pen")
-        self.highlight_btn.setChecked(tool_name == "highlighter")
-        self.rect_btn.setChecked(tool_name == "rectangle")
-        self.blur_btn.setChecked(tool_name == "blur")
-        self.scene.set_tool(tool_name)
-
-    def choose_color(self):
-        from PyQt6.QtWidgets import QColorDialog
-        color = QColorDialog.getColor(self.scene.pen_color, self, "Choose Pen Color")
-        if color.isValid():
-            self.scene.set_color(color)
-            self.color_btn.setStyleSheet(f"background-color: {color.name()}; border-radius: 10px; min-width: 20px; max-width: 20px; min-height: 20px; max-height: 20px; margin: 5px;")
-
-    def undo_stroke(self):
-        self.scene.undo()
-
-    def extract_text(self):
-        self.ocr_btn.setEnabled(False)
-        self.shimmer.start()
-
-        from PyQt6.QtCore import QByteArray, QBuffer, QIODevice
-        final_image = self.get_rendered_image()
-        byte_array = QByteArray()
-        buffer = QBuffer(byte_array)
-        buffer.open(QIODevice.OpenModeFlag.WriteOnly)
-        final_image.save(buffer, "PNG")
-
-        self.ocr_thread = OCRWorker(byte_array)
-        self.ocr_thread.result_ready.connect(self.on_ocr_complete)
-        self.ocr_thread.error_occurred.connect(self.on_ocr_error)
-        self.ocr_thread.start()
-
-    def on_ocr_complete(self, text):
-        self.shimmer.stop()
-        self.ocr_btn.setEnabled(True)
-        
-        if text.strip():
-            QApplication.clipboard().setText(text)
-            self.show_toast("Text copied to clipboard!")
-        else:
-            QMessageBox.information(self, "No Text Found", "Could not detect any text in this snip.")
-
-    def on_ocr_error(self, error_msg):
-        self.shimmer.stop()
-        self.ocr_btn.setEnabled(True)
-        QMessageBox.warning(self, "OCR Error", error_msg)
-
-    def get_rendered_image(self):
-        pixmap = QPixmap(self.scene.sceneRect().size().toSize())
-        pixmap.fill(Qt.GlobalColor.transparent)
-        painter = QPainter(pixmap)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        self.scene.render(painter)
-        painter.end()
-        return pixmap
-
-    def save_image(self):
-        path, _ = QFileDialog.getSaveFileName(self, "Save Screenshot", "", "PNG Files (*.png)")
-        if path:
-            final_image = self.get_rendered_image()
-            final_image.save(path)
-            self.close()
-
-    def copy_to_clipboard(self):
-        final_image = self.get_rendered_image()
-        QApplication.clipboard().setPixmap(final_image)
-        self.copy_btn.setEnabled(False)
-        from PyQt6.QtCore import QTimer
-        QTimer.singleShot(1200, self.close)
-
-    def showEvent(self, event):
-        super().showEvent(event)
-        self.view.fitInView(self.scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
-        if hasattr(self, 'shimmer'):
-            self.shimmer.resize(self.view.size())
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self.view.fitInView(self.scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
-        if hasattr(self, 'shimmer'):
-            self.shimmer.resize(self.view.size())
-
-    def show_toast(self, message):
-        self.toast_label.setText(message)
-        self.toast_label.adjustSize()
-        
-        from PyQt6.QtCore import QPoint
-        btn_pos = self.ocr_btn.mapTo(self, QPoint(0, 0))
-        
-        x = btn_pos.x() - self.toast_label.width() - 15 
-        
-        y = btn_pos.y() + int((self.ocr_btn.height() - self.toast_label.height()) / 2)
-        
-        self.toast_label.move(x, y)
-        self.toast_label.show()
-        self.toast_label.raise_()
-        
-        from PyQt6.QtCore import QTimer
-        QTimer.singleShot(2000, self.toast_label.hide)
-
 class GlobalHotkeyThread(QThread):
     trigger_snip = pyqtSignal()
-
     def run(self):
         keyboard.add_hotkey('ctrl+shift+s', self.emit_trigger)
         keyboard.wait()
-
     def emit_trigger(self):
         self.trigger_snip.emit()
 
-import cv2
-from PyQt6.QtCore import QTimer
-from PyQt6.QtGui import QImage
+class FloatingSnipToolbar(QWidget):
+    mode_selected = pyqtSignal(str)
+    cancelled = pyqtSignal()
 
-class VideoPreviewDialog(QMainWindow): # <-- Changed to QMainWindow
+    def __init__(self, dark_mode=False, initial_mode="Rectangle mode"):
+        super().__init__()
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+
+        self.icon_color = "#ffffff" if dark_mode else "#000000"
+        self.bg_color = "#2b2b2b" if dark_mode else "#ffffff"
+        self.border_color = "#4a4a4a" if dark_mode else "#d0d0d0"
+        self.hover_color = "#414141" if dark_mode else "#f0f0f0"
+        self.active_color = "#0078d4" # Native windows blue indicator
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(10, 10, 10, 10)
+
+        container = QFrame()
+        container.setStyleSheet(f"""
+            QFrame {{
+                background-color: {self.bg_color};
+                border: 1px solid {self.border_color};
+                border-radius: 8px;
+            }}
+        """)
+        
+        c_layout = QHBoxLayout(container)
+        c_layout.setContentsMargins(8, 6, 8, 6)
+        c_layout.setSpacing(6)
+
+        # Mode Buttons
+        self.rect_btn = self.create_btn("rectangle", "Rectangle Snip", "Rectangle mode")
+        self.free_btn = self.create_btn("free-form", "Freeform Snip", "Free-form mode")
+        self.win_btn = self.create_btn("window", "Window Snip", "Window mode")
+        self.full_btn = self.create_btn("fullscreen", "Fullscreen Snip", "Fullscreen mode")
+        
+        # Separator
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.VLine)
+        sep.setStyleSheet(f"background-color: {self.border_color};")
+        
+        # Close Button
+        self.close_btn = QPushButton("✕")
+        self.close_btn.setToolTip("Cancel")
+        self.close_btn.setFixedSize(36, 36)
+        self.close_btn.setStyleSheet(f"""
+            QPushButton {{ background: transparent; border: none; border-radius: 4px; color: {self.icon_color}; font-weight: bold; font-size: 16px;}}
+            QPushButton:hover {{ background: #E81123; color: white; }}
+        """)
+        self.close_btn.clicked.connect(self.cancelled.emit)
+
+        self.buttons = [self.rect_btn, self.free_btn, self.win_btn, self.full_btn]
+        
+        c_layout.addWidget(self.rect_btn)
+        c_layout.addWidget(self.free_btn)
+        c_layout.addWidget(self.win_btn)
+        c_layout.addWidget(self.full_btn)
+        c_layout.addWidget(sep)
+        c_layout.addWidget(self.close_btn)
+
+        layout.addWidget(container)
+
+        self.adjustSize()
+        screen_geom = QApplication.primaryScreen().geometry()
+        self.move(screen_geom.width() // 2 - self.width() // 2, 20)
+        
+        self.set_active_button(initial_mode)
+
+    def create_btn(self, icon_name, tooltip, mode_name):
+        btn = QPushButton()
+        btn.setIcon(create_svg_icon(icon_name, self.icon_color))
+        btn.setToolTip(tooltip)
+        btn.setFixedSize(36, 36)
+        btn.setProperty("mode", mode_name)
+        btn.setStyleSheet(f"""
+            QPushButton {{ background: transparent; border: none; border-radius: 4px; border-bottom: 3px solid transparent;}}
+            QPushButton:hover {{ background: {self.hover_color}; }}
+        """)
+        btn.clicked.connect(lambda: self.handle_mode_click(btn))
+        return btn
+
+    def handle_mode_click(self, btn):
+        mode = btn.property("mode")
+        self.set_active_button(mode)
+        self.mode_selected.emit(mode)
+        
+    def set_active_button(self, mode):
+        for btn in self.buttons:
+            if btn.property("mode") == mode:
+                btn.setStyleSheet(f"""
+                    QPushButton {{ background: {self.hover_color}; border: none; border-radius: 4px; border-bottom: 3px solid {self.active_color};}}
+                """)
+            else:
+                btn.setStyleSheet(f"""
+                    QPushButton {{ background: transparent; border: none; border-radius: 4px; border-bottom: 3px solid transparent;}}
+                    QPushButton:hover {{ background: {self.hover_color}; }}
+                """)
+
+import cv2
+
+class VideoPreviewDialog(QMainWindow):
     def __init__(self, video_path, dark_mode=False, parent=None):
-        super().__init__(parent=parent) # <-- Updated super() call
+        super().__init__(parent=parent)
         self.setWindowModality(Qt.WindowModality.ApplicationModal)
         self.setWindowTitle("Snipping Tool - Video Preview")
         self.resize(1000, 700)
@@ -551,39 +336,27 @@ class VideoPreviewDialog(QMainWindow): # <-- Changed to QMainWindow
         self.dark_mode = dark_mode
         self.is_playing = True
 
-        # --- PYWINSTYLES MAGIC ---
         import pywinstyles
         pywinstyles.apply_style(self, "mica")
         header_color = "#1f1f1f" if dark_mode else "#f3f3f3"
         pywinstyles.change_header_color(self, header_color)
         if dark_mode:
             pywinstyles.apply_style(self, "dark")
-        # -------------------------
         
-        # Create central widget for QMainWindow
         self.central_widget = QWidget()
         self.central_widget.setObjectName("dialogContainer")
         self.setCentralWidget(self.central_widget)
         
-        # Initialize OpenCV Video Capture
-        import cv2
         self.cap = cv2.VideoCapture(self.video_path)
         self.fps = self.cap.get(cv2.CAP_PROP_FPS) or 20.0
         
         self.setup_ui()
         
-        # Setup playback timer
-        from PyQt6.QtCore import QTimer
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_frame)
         self.timer.start(int(1000 / self.fps))
 
     def setup_ui(self):
-        # Attach layout to self.central_widget instead of self.content
-        from PyQt6.QtWidgets import QVBoxLayout, QWidget, QHBoxLayout, QPushButton, QFrame, QLabel, QGraphicsDropShadowEffect, QFileDialog
-        from PyQt6.QtGui import QColor, QPixmap, QImage
-        from PyQt6.QtCore import Qt
-        
         main_layout = QVBoxLayout(self.central_widget)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
@@ -627,7 +400,7 @@ class VideoPreviewDialog(QMainWindow): # <-- Changed to QMainWindow
         divider.setFixedHeight(1)
         main_layout.addWidget(divider)
 
-        bg_color = 'transparent' # Let Mica show through
+        bg_color = 'transparent'
         self.player_container = QWidget()
         self.player_container.setStyleSheet(f"background-color: {bg_color};")
         
@@ -637,7 +410,6 @@ class VideoPreviewDialog(QMainWindow): # <-- Changed to QMainWindow
         self.video_label = QLabel()
         self.video_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
-        # We can keep the shadow on the video itself, it looks nice!
         shadow = QGraphicsDropShadowEffect()
         shadow.setBlurRadius(20)
         shadow.setColor(QColor(0, 0, 0, 120))
@@ -651,10 +423,6 @@ class VideoPreviewDialog(QMainWindow): # <-- Changed to QMainWindow
         if not self.is_playing:
             return
             
-        import cv2
-        from PyQt6.QtGui import QImage, QPixmap
-        from PyQt6.QtCore import Qt
-        
         ret, frame = self.cap.read()
         
         if not ret:
@@ -666,6 +434,7 @@ class VideoPreviewDialog(QMainWindow): # <-- Changed to QMainWindow
             h, w, ch = frame.shape
             bytes_per_line = ch * w
             
+            from PyQt6.QtGui import QImage, QPixmap
             qimg = QImage(frame.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
             pixmap = QPixmap.fromImage(qimg)
             
@@ -681,7 +450,6 @@ class VideoPreviewDialog(QMainWindow): # <-- Changed to QMainWindow
 
     def save_video(self):
         import shutil
-        from PyQt6.QtWidgets import QFileDialog
         path, _ = QFileDialog.getSaveFileName(self, "Save Video", "", "MP4 Files (*.mp4)")
         if path:
             self.is_playing = False
@@ -702,56 +470,53 @@ class SnippingToolGUI(QMainWindow):
         self.icon_color = "#ffffff" if dark_mode else "#000000"
 
         self.setWindowTitle("Snipping Tool")
-        self.resize(620, 300)
+        self.resize(1000, 700)
         self.setMinimumSize(520, 300)
 
-        # --- PYWINSTYLES MAGIC ---
-        # 1. Apply Mica backdrop to the window
         pywinstyles.apply_style(self, "mica")
-        
-        # 2. Color the native Windows title bar to match our theme perfectly
         header_color = "#1f1f1f" if dark_mode else "#f3f3f3"
         pywinstyles.change_header_color(self, header_color)
-        
-        # 3. Force dark mode text on the title bar if needed
-        if dark_mode:
-            pywinstyles.apply_style(self, "dark")
-        # -------------------------
+        if dark_mode: pywinstyles.apply_style(self, "dark")
 
         self.snip_modes = ["Rectangle mode", "Free-form mode", "Window mode", "Fullscreen mode"]
         self.delays = ["No delay", "3 seconds", "5 seconds", "10 seconds"]
         self.current_mode = self.snip_modes[0]
         self.current_delay_sec = 0
         
-        # Create central widget for QMainWindow
+        self.current_overlay = None
+        self.snip_toolbar = None
+        
         self.central_widget = QWidget()
         self.central_widget.setObjectName("mainContainer")
         self.setCentralWidget(self.central_widget)
         
         self.setup_ui()
 
+        self.copy_shortcut = QShortcut(QKeySequence("Ctrl+C"), self)
+        self.copy_shortcut.activated.connect(self.copy_to_clipboard)
+        self.save_shortcut = QShortcut(QKeySequence("Ctrl+S"), self)
+        self.save_shortcut.activated.connect(self.save_image)
+
         self.hotkey_thread = GlobalHotkeyThread()
         self.hotkey_thread.trigger_snip.connect(self.start_snip)
         self.hotkey_thread.start()
 
     def setup_ui(self):
-        # Attach the layout to the central_widget instead of self.content
         main_layout = QVBoxLayout(self.central_widget)
-        main_layout.setContentsMargins(12, 12, 12, 12)
-        main_layout.setSpacing(10)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
         
-        toolbar = QWidget()
-        toolbar_layout = QHBoxLayout(toolbar)
-        toolbar_layout.setContentsMargins(0, 0, 0, 4)
-        toolbar_layout.setSpacing(8)
+        self.top_toolbar = QWidget()
+        self.top_toolbar.setFixedHeight(55)
+        t_layout = QHBoxLayout(self.top_toolbar)
+        t_layout.setContentsMargins(15, 0, 15, 0)
+        t_layout.setSpacing(5)
 
         self.new_btn = QPushButton(" New")
         self.new_btn.setObjectName("newButton")
         self.new_btn.clicked.connect(self.start_snip)
         self.new_btn.setFixedHeight(36)
-        
-        self.new_btn.setIcon(create_svg_icon("plus", self.icon_color))
-        self.new_btn.setIconSize(QSize(20, 20))
+        self.new_btn.setIcon(create_svg_icon("plus", "#ffffff" if not self.dark_mode else self.icon_color)) 
         
         self.mode_btn = QPushButton()
         self.mode_btn.setObjectName("toolbarButton")
@@ -765,75 +530,192 @@ class SnippingToolGUI(QMainWindow):
         self.delay_btn.clicked.connect(self.show_delay_menu)
         self.update_delay_button()
 
-        toolbar_layout.addWidget(self.new_btn)
-        toolbar_layout.addWidget(self.mode_btn)
-        toolbar_layout.addWidget(self.delay_btn)
-        toolbar_layout.addStretch()
+        t_layout.addWidget(self.new_btn)
+        t_layout.addWidget(self.mode_btn)
+        t_layout.addWidget(self.delay_btn)
+        t_layout.addStretch(1)
         
-        placeholder = QFrame()
-        placeholder.setObjectName("placeholderFrame")
-        placeholder_layout = QVBoxLayout(placeholder)
-        placeholder_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        main_layout.addWidget(self.top_toolbar)
+        
+        h_div_top = QFrame()
+        h_div_top.setFrameShape(QFrame.Shape.HLine)
+        h_div_top.setStyleSheet(f"background-color: {'#3a3a3a' if self.dark_mode else '#e0e0e0'};")
+        main_layout.addWidget(h_div_top)
+
+        self.stacked_widget = QStackedWidget()
+        main_layout.addWidget(self.stacked_widget, 1)
+
+        self.placeholder_page = QWidget()
+        p_layout = QVBoxLayout(self.placeholder_page)
+        p_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        self.placeholder_frame = QFrame()
+        self.placeholder_frame.setObjectName("placeholderFrame")
+        self.placeholder_frame.setFixedSize(500, 150)
+        pf_layout = QVBoxLayout(self.placeholder_frame)
+        pf_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         placeholder_label = QLabel("Snip and share")
         placeholder_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         placeholder_label.setObjectName("placeholderLabel")
-        placeholder_layout.addWidget(placeholder_label)
+        placeholder_label.setFont(QFont("Segoe UI Variable", 16))
+        pf_layout.addWidget(placeholder_label)
+        
+        instruction_label = QLabel("Press Windows logo key + Shift + S to start a snip.")
+        instruction_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        instruction_label.setStyleSheet("color: #a0a0a0; margin-top: 10px;")
+        pf_layout.addWidget(instruction_label)
 
-        main_layout.addWidget(toolbar)
-        main_layout.addWidget(placeholder, 1)
+        p_layout.addWidget(self.placeholder_frame)
+        self.stacked_widget.addWidget(self.placeholder_page)
+
+        self.canvas_page = QWidget()
+        c_layout = QVBoxLayout(self.canvas_page)
+        c_layout.setContentsMargins(40, 40, 40, 40)
+        
+        self.scene = AnnotationScene(self)
+        self.view = QGraphicsView(self.scene)
+        self.view.setRenderHint(QPainter.RenderHint.Antialiasing)
+        self.view.setStyleSheet("background: transparent; border: none;")
+        self.view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        
+        shadow = QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(20)
+        shadow.setColor(QColor(0, 0, 0, 120))
+        shadow.setOffset(0, 4)
+        self.view.setGraphicsEffect(shadow)
+        c_layout.addWidget(self.view)
+        
+        self.stacked_widget.addWidget(self.canvas_page)
+
+        self.h_div_bottom = QFrame()
+        self.h_div_bottom.setFrameShape(QFrame.Shape.HLine)
+        self.h_div_bottom.setStyleSheet(f"background-color: {'#3a3a3a' if self.dark_mode else '#e0e0e0'};")
+        main_layout.addWidget(self.h_div_bottom)
+
+        self.bottom_toolbar = QWidget()
+        self.bottom_toolbar.setFixedHeight(55)
+        b_layout = QHBoxLayout(self.bottom_toolbar)
+        b_layout.setContentsMargins(15, 0, 15, 0)
+        b_layout.setSpacing(5)
+
+        btn_style = f"""
+            QPushButton {{ background: transparent; border: none; border-radius: 6px; padding: 10px; }}
+            QPushButton:hover {{ background-color: {"#383838" if self.dark_mode else "#e0e0e0"}; }}
+            QPushButton:checked {{ background-color: {"#4a4a4a" if self.dark_mode else "#d0d0d0"}; border-bottom: 3px solid {"#0078d4" if not self.dark_mode else "#4cc2ff"}; }}
+            QPushButton:disabled {{ opacity: 0.5; }}
+        """
+
+        self.pen_btn = QPushButton()
+        self.pen_btn.setIcon(create_svg_icon("pen", self.icon_color))
+        self.pen_btn.setCheckable(True)
+        self.pen_btn.setChecked(True)
+        self.pen_btn.setStyleSheet(btn_style)
+        self.pen_btn.clicked.connect(lambda: self.switch_tool("pen"))
+
+        self.highlight_btn = QPushButton()
+        self.highlight_btn.setIcon(create_svg_icon("highlighter", self.icon_color))
+        self.highlight_btn.setCheckable(True)
+        self.highlight_btn.setStyleSheet(btn_style)
+        self.highlight_btn.clicked.connect(lambda: self.switch_tool("highlighter"))
+
+        self.rect_btn = QPushButton()
+        self.rect_btn.setIcon(create_svg_icon("rect_tool", self.icon_color))
+        self.rect_btn.setCheckable(True)
+        self.rect_btn.setStyleSheet(btn_style)
+        self.rect_btn.clicked.connect(lambda: self.switch_tool("rectangle"))
+
+        self.blur_btn = QPushButton()
+        self.blur_btn.setIcon(create_svg_icon("blur", self.icon_color))
+        self.blur_btn.setCheckable(True)
+        self.blur_btn.setStyleSheet(btn_style)
+        self.blur_btn.clicked.connect(lambda: self.switch_tool("blur"))
+
+        self.color_btn = QPushButton()
+        self.color_btn.setStyleSheet(f"background-color: #ff0000; border-radius: 10px; min-width: 20px; max-width: 20px; min-height: 20px; max-height: 20px; margin: 5px;")
+        self.color_btn.clicked.connect(self.choose_color)
+
+        self.undo_btn = QPushButton()
+        self.undo_btn.setIcon(create_svg_icon("undo", self.icon_color))
+        self.undo_btn.setStyleSheet(btn_style)
+        self.undo_btn.clicked.connect(self.undo_stroke)
+
+        self.ocr_btn = QPushButton()
+        self.ocr_btn.setIcon(create_svg_icon("text", self.icon_color))
+        self.ocr_btn.setStyleSheet(btn_style)
+        self.ocr_btn.clicked.connect(self.extract_text)
+
+        self.copy_btn = QPushButton()
+        self.copy_btn.setIcon(create_svg_icon("copy", self.icon_color))
+        self.copy_btn.setStyleSheet(btn_style)
+        self.copy_btn.clicked.connect(self.copy_to_clipboard)
+
+        self.save_btn = QPushButton()
+        self.save_btn.setIcon(create_svg_icon("save", self.icon_color))
+        self.save_btn.setStyleSheet(btn_style)
+        self.save_btn.clicked.connect(self.save_image)
+
+        b_layout.addWidget(self.pen_btn)
+        b_layout.addWidget(self.highlight_btn)
+        b_layout.addWidget(self.rect_btn)
+        b_layout.addWidget(self.blur_btn)
+        b_layout.addWidget(self.color_btn)
+        b_layout.addWidget(self.undo_btn)
+        b_layout.addStretch(1)
+        b_layout.addWidget(self.ocr_btn)
+        b_layout.addWidget(self.copy_btn)
+        b_layout.addWidget(self.save_btn)
+
+        main_layout.addWidget(self.bottom_toolbar)
 
         self.toast_label = QLabel(self)
         self.toast_label.setStyleSheet("""
-            background-color: #4CAF50; 
-            color: white; 
-            border-radius: 6px; 
-            padding: 8px 16px; 
-            font-weight: 600;
-            font-size: 14px;
+            background-color: #303030; color: white; border-radius: 6px; 
+            padding: 8px 16px; font-weight: 600; font-size: 14px;
         """)
-        self.toast_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents) # Let clicks pass through
+        self.toast_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.toast_label.hide()
+        
+        self.shimmer = ShimmerOverlay(self.view)
+        
+        self.bottom_toolbar.hide()
+        self.h_div_bottom.hide()
+
+    def set_editing_tools_enabled(self, enabled):
+        if enabled:
+            self.bottom_toolbar.show()
+            self.h_div_bottom.show()
+        else:
+            self.bottom_toolbar.hide()
+            self.h_div_bottom.hide()
 
     def update_mode_button(self):
         icon_name = self.current_mode.split(' ')[0].lower()
         self.mode_btn.setText(f" {self.current_mode}")
         self.mode_btn.setIcon(create_svg_icon(icon_name, self.icon_color))
-        self.mode_btn.setIconSize(QSize(18, 18))
         
     def update_delay_button(self):
         self.delay_btn.setText(f" {self.delays[self.get_delay_index()]}")
         self.delay_btn.setIcon(create_svg_icon("delay", self.icon_color))
-        self.delay_btn.setIconSize(QSize(18, 18))
 
     def show_mode_menu(self):
         menu = QMenu(self)
         menu.setObjectName("contextMenu")
-        
-        actions = {
-            "Rectangle mode": "rectangle",
-            "Free-form mode": "free-form",
-            "Window mode": "window",
-            "Fullscreen mode": "fullscreen",
-            "Record mode": "record" 
-        }
-        
+        actions = { "Rectangle mode": "rectangle", "Free-form mode": "free-form", "Window mode": "window", "Fullscreen mode": "fullscreen", "Record mode": "record" }
         for text, icon_name in actions.items():
             action = QAction(create_svg_icon(icon_name, self.icon_color), text, self)
             action.triggered.connect(lambda checked, t=text: self.set_mode(t))
             menu.addAction(action)
-            
         menu.exec(self.mode_btn.mapToGlobal(self.mode_btn.rect().bottomLeft()))
 
     def show_delay_menu(self):
         menu = QMenu(self)
         menu.setObjectName("contextMenu")
-        
         for i, text in enumerate(self.delays):
             action = QAction(text, self)
             action.triggered.connect(lambda checked, idx=i: self.set_delay(idx))
             menu.addAction(action)
-            
         menu.exec(self.delay_btn.mapToGlobal(self.delay_btn.rect().bottomLeft()))
 
     def set_mode(self, mode):
@@ -847,199 +729,183 @@ class SnippingToolGUI(QMainWindow):
     def get_delay_index(self):
         return {0: 0, 3: 1, 5: 2, 10: 3}.get(self.current_delay_sec, 0)
 
+    def switch_tool(self, tool_name):
+        self.pen_btn.setChecked(tool_name == "pen")
+        self.highlight_btn.setChecked(tool_name == "highlighter")
+        self.rect_btn.setChecked(tool_name == "rectangle")
+        self.blur_btn.setChecked(tool_name == "blur")
+        self.scene.set_tool(tool_name)
+
+    def choose_color(self):
+        from PyQt6.QtWidgets import QColorDialog
+        color = QColorDialog.getColor(self.scene.pen_color, self, "Choose Pen Color")
+        if color.isValid():
+            self.scene.set_color(color)
+            self.color_btn.setStyleSheet(f"background-color: {color.name()}; border-radius: 10px; min-width: 20px; max-width: 20px; min-height: 20px; max-height: 20px; margin: 5px;")
+
+    def undo_stroke(self): self.scene.undo()
+
+    def extract_text(self):
+        self.ocr_btn.setEnabled(False)
+        self.shimmer.start()
+        final_image = self.get_rendered_image()
+        byte_array = QByteArray()
+        from PyQt6.QtCore import QBuffer, QIODevice
+        buffer = QBuffer(byte_array)
+        buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+        final_image.save(buffer, "PNG")
+        self.ocr_thread = OCRWorker(byte_array)
+        self.ocr_thread.result_ready.connect(self.on_ocr_complete)
+        self.ocr_thread.error_occurred.connect(self.on_ocr_error)
+        self.ocr_thread.start()
+
+    def on_ocr_complete(self, text):
+        self.shimmer.stop()
+        self.ocr_btn.setEnabled(True)
+        if text.strip():
+            QApplication.clipboard().setText(text)
+            self.show_toast("Text copied to clipboard!")
+        else:
+            QMessageBox.information(self, "No Text Found", "Could not detect any text.")
+
+    def on_ocr_error(self, error_msg):
+        self.shimmer.stop()
+        self.ocr_btn.setEnabled(True)
+        QMessageBox.warning(self, "OCR Error", error_msg)
+
+    def get_rendered_image(self):
+        pixmap = QPixmap(self.scene.sceneRect().size().toSize())
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        self.scene.render(painter)
+        painter.end()
+        return pixmap
+
+    def save_image(self):
+        path, _ = QFileDialog.getSaveFileName(self, "Save Screenshot", "", "PNG Files (*.png)")
+        if path:
+            self.get_rendered_image().save(path)
+
+    def copy_to_clipboard(self):
+        QApplication.clipboard().setPixmap(self.get_rendered_image())
+        self.show_toast("Copied to clipboard!")
+
+    def show_toast(self, message):
+        self.toast_label.setText(message)
+        self.toast_label.adjustSize()
+        from PyQt6.QtCore import QPoint
+        btn_pos = self.ocr_btn.mapTo(self, QPoint(0, 0))
+        self.toast_label.move(btn_pos.x() - self.toast_label.width() - 15, btn_pos.y())
+        self.toast_label.show()
+        self.toast_label.raise_()
+        QTimer.singleShot(2000, self.toast_label.hide)
+
     def start_snip(self):
         self.hide()
-        QTimer.singleShot(200, self.initiate_capture)
+        QTimer.singleShot(200, self.launch_snip_environment)
 
-    def initiate_capture(self):
-        if "Rectangle" in self.current_mode:
-            self.snip_overlay = RectangleSnipOverlay(self.current_delay_sec)
-            self.snip_overlay.snip_completed.connect(self.show_preview)
-        elif "Free-form" in self.current_mode:
-            self.snip_overlay = FreeformSnipOverlay(self.current_delay_sec) 
-            self.snip_overlay.snip_completed.connect(self.show_preview)
-        elif "Window" in self.current_mode:
-            self.snip_overlay = WindowSnipOverlay(self.current_delay_sec)
-            self.snip_overlay.snip_completed.connect(self.show_preview)
-        elif "Fullscreen" in self.current_mode:
-            QTimer.singleShot(self.current_delay_sec * 1000, self.capture_fullscreen)
-        elif "Record" in self.current_mode:
-            self.snip_overlay = VideoSnipOverlay()
-            self.snip_overlay.recording_completed.connect(self.video_saved)
-        else:
-            QMessageBox.information(self, "Coming Soon", f"{self.current_mode} not implemented.")
-            self.show()
-    
-    def video_saved(self, filepath):
+    def launch_snip_environment(self):
+        if "Record" in self.current_mode:
+            self.current_overlay = VideoSnipOverlay()
+            self.current_overlay.recording_completed.connect(self.on_video_completed)
+            return
+
+        self.screen_pixmap = QApplication.primaryScreen().grabWindow(0)
+
+        self.snip_toolbar = FloatingSnipToolbar(self.dark_mode, self.current_mode)
+        self.snip_toolbar.mode_selected.connect(self.switch_snip_mode)
+        self.snip_toolbar.cancelled.connect(self.cancel_snip)
+        self.snip_toolbar.show()
+
+        self.switch_snip_mode(self.current_mode)
+
+    def switch_snip_mode(self, mode):
+        self.current_mode = mode
+        self.update_mode_button()
+
+        if self.current_overlay:
+            self.current_overlay.close()
+            self.current_overlay.deleteLater()
+
+        if "Rectangle" in mode:
+            self.current_overlay = RectangleSnipOverlay(self.screen_pixmap, self.current_delay_sec)
+        elif "Free-form" in mode:
+            self.current_overlay = FreeformSnipOverlay(self.screen_pixmap, self.current_delay_sec)
+        elif "Window" in mode:
+            self.current_overlay = WindowSnipOverlay(self.screen_pixmap, self.current_delay_sec)
+        elif "Fullscreen" in mode:
+            self.on_snip_completed(self.screen_pixmap)
+            return
+            
+        if self.current_overlay:
+            self.current_overlay.snip_completed.connect(self.on_snip_completed)
+
+    def on_snip_completed(self, image):
+        if self.snip_toolbar:
+            self.snip_toolbar.close()
+            
+        if image:
+            self.scene.clear()
+            self.scene.setSceneRect(0, 0, image.width(), image.height())
+            self.scene.addPixmap(image)
+            self.scene.set_base_pixmap(image)
+            
+            self.stacked_widget.setCurrentIndex(1)
+            self.set_editing_tools_enabled(True)
+            self.view.fitInView(self.scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
+            
+        self.showNormal()
+        self.activateWindow()
+
+    def on_video_completed(self, filepath):
         if filepath:
             self.preview_window = VideoPreviewDialog(filepath, dark_mode=self.dark_mode, parent=self)
             self.preview_window.show()
-        self.show()
+        self.showNormal()
 
-    def capture_fullscreen(self):
-        screen = QApplication.primaryScreen()
-        screenshot = screen.grabWindow(0)
-        self.show_preview(screenshot)
+    def cancel_snip(self):
+        if self.snip_toolbar: self.snip_toolbar.close()
+        if self.current_overlay: self.current_overlay.close()
+        self.showNormal()
 
-    def show_preview(self, image):
-        if image:
-            self.preview_window = ImagePreviewDialog(image, dark_mode=self.dark_mode, parent=self)
-            self.preview_window.show()
-        self.show()
-
-
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, 'view') and self.scene.items():
+            self.view.fitInView(self.scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
+        if hasattr(self, 'shimmer'):
+            self.shimmer.resize(self.view.size())
 
 DARK_THEME_STYLESHEET = """
-QWidget {
-    color: #ffffff;
-    font-family: "Segoe UI Variable", sans-serif;
-    font-size: 14px;
-}
-#mainContainer, #dialogContainer {
-    background-color: transparent; /* Let Mica show through */
-    border: none;
-}
-#newButton {
-    background-color: #D72828;
-    border: 1px solid #6B6B6B;
-    border-radius: 4px;
-    padding: 0px 16px;
-    font-weight: 600;
-}
+QWidget { color: #ffffff; font-family: "Segoe UI Variable", sans-serif; font-size: 14px; }
+#mainContainer, #dialogContainer { background-color: transparent; border: none; }
+#newButton { background-color: #D72828; border: 1px solid #6B6B6B; border-radius: 4px; padding: 0px 16px; font-weight: 600; }
 #newButton:hover { background-color: #FF1414; }
-#newButton:pressed { background-color: #FF0A0A; }
-
-#toolbarButton {
-    background-color: #323232;
-    border: 1px solid #4a4a4a;
-    border-radius: 4px;
-    padding: 0 10px;
-    text-align: left;
-}
+#toolbarButton { background-color: #323232; border: 1px solid #4a4a4a; border-radius: 4px; padding: 0 10px; text-align: left; }
 #toolbarButton:hover { background-color: #414141; }
-#toolbarButton:pressed { background-color: #2a2a2a; }
-
-#placeholderFrame {
-    background-color: #2b2b2b;
-    border: 1px solid #3a3a3a;
-    border-radius: 6px;
-}
-#placeholderLabel { color: #a0a0a0; }
-
-QDialogButtonBox QPushButton {
-    background-color: #323232;
-    border: 1px solid #4a4a4a;
-    border-radius: 4px;
-    padding: 8px 16px;
-    min-width: 80px;
-}
-QDialogButtonBox QPushButton:hover { background-color: #414141; }
-
-QMenu {
-    background-color: #2b2b2b;
-    border: 1px solid #4a4a4a;
-    border-radius: 6px;
-    padding: 4px;
-}
-QMenu::item {
-    padding: 6px 16px;
-    border-radius: 4px;
-}
-QMenu::item:selected {
-    background-color: #414141;
-}
+#placeholderFrame { background-color: #2b2b2b; border: 1px solid #3a3a3a; border-radius: 6px; }
+QMenu { background-color: #2b2b2b; border: 1px solid #4a4a4a; border-radius: 6px; padding: 4px; }
+QMenu::item { padding: 6px 16px; border-radius: 4px; }
+QMenu::item:selected { background-color: #414141; }
 """
 
 LIGHT_THEME_STYLESHEET = """
-QWidget {
-    color: #000000;
-    font-family: "Segoe UI Variable", sans-serif;
-    font-size: 14px;
-}
-#mainContainer, #dialogContainer {
-    background-color: #f3f3f3;
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
-}
-#titleBar {
-    background-color: #f3f3f3;
-    border-top-left-radius: 8px;
-    border-top-right-radius: 8px;
-}
-#titleLabel {
-    color: #1c1c1c; 
-    font-weight: 600;
-}
-#titleButton {
-    background-color: transparent;
-    border: none;
-    min-width: 40px;
-    height: 40px;
-    font-size: 12px;
-}
-#titleButton:hover { background-color: #e0e0e0; }
-#closeButton:hover { background-color: #E81123; color: white; }
-#maxButton:hover { background-color: #e0e0e0; }
-
-#newButton {
-    background-color: #0078d4;
-    border: 1px solid #0078d4;
-    border-radius: 4px;
-    padding: 0px 16px;
-    font-weight: 600;
-    color: white;
-}
+QWidget { color: #000000; font-family: "Segoe UI Variable", sans-serif; font-size: 14px; }
+#mainContainer, #dialogContainer { background-color: #f3f3f3; border: 1px solid #e0e0e0; border-radius: 8px; }
+#newButton { background-color: #0078d4; border: 1px solid #0078d4; border-radius: 4px; padding: 0px 16px; font-weight: 600; color: white; }
 #newButton:hover { background-color: #108ee9; }
-#newButton:pressed { background-color: #005a9e; }
-
-#toolbarButton {
-    background-color: #ffffff;
-    border: 1px solid #d0d0d0;
-    border-radius: 4px;
-    padding: 0 10px;
-    text-align: left;
-}
+#toolbarButton { background-color: #ffffff; border: 1px solid #d0d0d0; border-radius: 4px; padding: 0 10px; text-align: left; }
 #toolbarButton:hover { background-color: #f0f0f0; }
-#toolbarButton:pressed { background-color: #e0e0e0; }
-
-#placeholderFrame {
-    background-color: #ffffff;
-    border: 1px solid #e0e0e0;
-    border-radius: 6px;
-}
-#placeholderLabel { color: #606060; }
-
-QDialogButtonBox QPushButton {
-    background-color: #ffffff;
-    border: 1px solid #d0d0d0;
-    border-radius: 4px;
-    padding: 8px 16px;
-    min-width: 80px;
-}
-QDialogButtonBox QPushButton:hover { background-color: #f0f0f0; }
-
-QMenu {
-    background-color: #ffffff;
-    border: 1px solid #d0d0d0;
-    border-radius: 6px;
-    padding: 4px;
-}
-QMenu::item {
-    padding: 6px 16px;
-    border-radius: 4px;
-}
-QMenu::item:selected {
-    background-color: #f0f0f0;
-}
+#placeholderFrame { background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 6px; }
+QMenu { background-color: #ffffff; border: 1px solid #d0d0d0; border-radius: 6px; padding: 4px; }
+QMenu::item { padding: 6px 16px; border-radius: 4px; }
+QMenu::item:selected { background-color: #f0f0f0; }
 """
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    
     dark_mode = is_dark_mode()
-    
     app.setStyleSheet(DARK_THEME_STYLESHEET if dark_mode else LIGHT_THEME_STYLESHEET)
-    
     win = SnippingToolGUI(dark_mode=dark_mode)
     win.show()
     sys.exit(app.exec())

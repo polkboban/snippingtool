@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import QWidget, QApplication
 class RectangleSnipOverlay(QWidget):
     snip_completed = pyqtSignal(object)
 
-    def __init__(self, delay=0):
+    def __init__(self, screen_pixmap=None, delay=0):
         super().__init__()
         self.delay = delay
         self.begin = QPoint()
@@ -14,12 +14,16 @@ class RectangleSnipOverlay(QWidget):
         self.setMouseTracking(True)
         self.setCursor(Qt.CursorShape.CrossCursor)
 
-        self.screen_pixmap = QApplication.primaryScreen().grabWindow(0)
+        if screen_pixmap:
+            self.screen_pixmap = screen_pixmap
+        else:
+            self.screen_pixmap = QApplication.primaryScreen().grabWindow(0)
 
         if self.delay > 0:
             QTimer.singleShot(self.delay * 1000, self.showFullScreen)
         else:
             self.showFullScreen()
+            
 
     def paintEvent(self, event):
         painter = QPainter(self)

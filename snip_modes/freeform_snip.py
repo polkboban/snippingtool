@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import QApplication, QWidget
 class FreeformSnipOverlay(QWidget):
     snip_completed = pyqtSignal(object)  
 
-    def __init__(self, delay=0):
+    def __init__(self, screen_pixmap=None, delay=0):
         super().__init__()
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
@@ -13,7 +13,8 @@ class FreeformSnipOverlay(QWidget):
         self.setMouseTracking(True)
         self.setCursor(Qt.CursorShape.CrossCursor)
         self.path = QPainterPath()
-        self.fullscreen_pixmap = None
+        
+        self.screen_pixmap = screen_pixmap
 
         if delay > 0:
             QTimer.singleShot(delay * 1000, self.start_snipping)
@@ -21,8 +22,9 @@ class FreeformSnipOverlay(QWidget):
             self.start_snipping()
 
     def start_snipping(self):
-        screen = QApplication.primaryScreen()
-        self.fullscreen_pixmap = screen.grabWindow(0)
+        if not self.screen_pixmap:
+            screen = QApplication.primaryScreen()
+            self.screen_pixmap = screen.grabWindow(0)
         self.showFullScreen()
 
     def paintEvent(self, event):
@@ -50,17 +52,17 @@ class FreeformSnipOverlay(QWidget):
         self.close()
 
     def capture_freeform_area(self):
-        if self.fullscreen_pixmap is None or self.path.isEmpty():
+        if self.screen_pixmap is None or self.path.isEmpty():
             self.snip_completed.emit(None)
             return
 
-        cropped_pixmap = QPixmap(self.fullscreen_pixmap.size())
+        cropped_pixmap = QPixmap(self.screen_pixmap.size())
         cropped_pixmap.fill(Qt.GlobalColor.transparent)
 
         painter = QPainter(cropped_pixmap)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setClipPath(self.path)
-        painter.drawPixmap(0, 0, self.fullscreen_pixmap)
+        painter.drawPixmap(0, 0, self.screen_pixmap)
         painter.end()
 
         bounding_rect = self.path.boundingRect().toRect()

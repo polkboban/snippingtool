@@ -32,11 +32,9 @@ def get_window_under_cursor(x, y, ignore_hwnd):
     def callback(hwnd, extra):
         nonlocal found_hwnd
         
-        # Skip our own overlay, invisible windows, and minimized windows
         if hwnd == ignore_hwnd or not win32gui.IsWindowVisible(hwnd) or win32gui.IsIconic(hwnd):
             return True
             
-        # Filter out the desktop background and taskbar
         class_name = win32gui.GetClassName(hwnd)
         if class_name in ("Progman", "WorkerW", "Shell_TrayWnd"):
             return True
@@ -46,8 +44,6 @@ def get_window_under_cursor(x, y, ignore_hwnd):
         except Exception:
             return True
             
-        # If the mouse is inside this window's bounds, we found our target!
-        # (Since EnumWindows goes top-to-bottom in Z-order, the first match is the highest window)
         if left <= x <= right and top <= y <= bottom:
             found_hwnd = hwnd
             return False 
@@ -60,12 +56,13 @@ def get_window_under_cursor(x, y, ignore_hwnd):
 class WindowSnipOverlay(QWidget):
     snip_completed = pyqtSignal(object)
 
-    def __init__(self, delay=0):
+    def __init__(self, screen_pixmap=None, delay=0):
         super().__init__()
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         
-        # Ensure it covers all monitors
+        self.screen_pixmap = screen_pixmap
+        
         screen_geometry = QApplication.primaryScreen().virtualGeometry()
         self.setGeometry(screen_geometry)
         
@@ -77,10 +74,8 @@ class WindowSnipOverlay(QWidget):
 
     def mouseMoveEvent(self, event):
         try:
-            # Physical coordinates from PyAutoGUI
             physical_x, physical_y = pyautogui.position()
             
-            # Find the window underneath the overlay
             hwnd = get_window_under_cursor(physical_x, physical_y, int(self.winId()))
             
             if hwnd:
@@ -88,10 +83,8 @@ class WindowSnipOverlay(QWidget):
                 width = right - left
                 height = bottom - top
                 
-                # Store physical rect for PyAutoGUI capture
                 self.physical_rect = (left, top, width, height)
                 
-                # Convert to logical rect for PyQt6 to draw the red highlight correctly on high-DPI
                 scale = self.devicePixelRatioF()
                 self.logical_rect = QRect(
                     int(left / scale), 
@@ -126,14 +119,13 @@ class WindowSnipOverlay(QWidget):
     def capture_snip(self):
         self.hide()
         try:
-            screen = QApplication.primaryScreen()
-            screenshot = screen.grabWindow(
-                0, 
-                self.logical_rect.x(), 
-                self.logical_rect.y(), 
-                self.logical_rect.width(), 
-                self.logical_rect.height()
-            )
+            # Huge fix here! Use the pre-grabbed pixmap so the toolbar isn't captured!
+            if self.screen_pixmap:
+                screenshot = self.screen_pixmap.copy(self.logical_rect)
+            else:
+                screen = QApplication.primaryScreen()
+                screenshot = screen.grabWindow(0, self.logical_rect.x(), self.logical_rect.y(), self.logical_rect.width(), self.logical_rect.height())
+                
             self.snip_completed.emit(screenshot)
         except Exception as e:
             print(f"Capture error: {e}")
