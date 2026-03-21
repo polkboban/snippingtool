@@ -14,29 +14,31 @@ from PyQt6.QtGui import (
     QPixmap, QColor, QFont, QIcon, QPainter, QAction,
     QPainterPath, QPen, QShortcut, QKeySequence, QLinearGradient
 )
-from PyQt6.QtCore import Qt, QTimer, QSize, QByteArray, pyqtSignal, QThread
-
+from PyQt6.QtCore import Qt, QTimer, QSize, QByteArray, pyqtSignal, QThread, QPropertyAnimation, QEasingCurve, QPoint, QVariantAnimation
 from snip_modes.rectangle_snip import RectangleSnipOverlay
 from snip_modes.freeform_snip import FreeformSnipOverlay
 from snip_modes.window_snip import WindowSnipOverlay
 from snip_modes.video_snip import VideoSnipOverlay
 
 SVG_ICONS = {
-    "record": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="3" fill="{color}"></circle></svg>""",
-    "blur": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M8 12h8"></path><path d="M12 8v8"></path></svg>""",
-    "text": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line></svg>""",
+    "record": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="4" fill="{color}"></circle></svg>""",
+    "blur": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>""",
+    "text": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg>""",
     "rect_tool": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>""",
-    "plus": """<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>""",
-    "rectangle": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="{color}" width="18px" height="18px"><path d="M2 4.5A2.5 2.5 0 0 1 4.5 2h15A2.5 2.5 0 0 1 22 4.5v15a2.5 2.5 0 0 1-2.5 2.5h-15A2.5 2.5 0 0 1 2 19.5v-15ZM4.5 3A1.5 1.5 0 0 0 3 4.5v15A1.5 1.5 0 0 0 4.5 21h15a1.5 1.5 0 0 0 1.5-1.5v-15A1.5 1.5 0 0 0 19.5 3h-15Z"/></svg>""",
-    "free-form": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="{color}" width="18px" height="18px"><path d="M19.64 3.36a1.5 1.5 0 0 1 .42 2.08l-2.73 6.83a.5.5 0 0 0 .94.38l2.73-6.83a2.5 2.5 0 0 0-3.46-3.46l-6.83 2.73a.5.5 0 0 0 .38.94l6.83-2.73a1.5 1.5 0 0 1 2.08.42ZM8.41 6.1a1.5 1.5 0 0 1 2.49-1.59l.34.21a.5.5 0 0 0 .6-.2l.21-.34a1.5 1.5 0 0 1 2.49 1.59l-4.5 7.19a1.5 1.5 0 0 1-2.48 0L3.6 8.39a1.5 1.5 0 0 1 2.1-2.12l2.7 2.83ZM3.9 7.7a.5.5 0 0 0-.7.71l3.96 4.57a.5.5 0 0 0 .83 0l4.5-7.19a.5.5 0 0 0-.83-.53l-4.14 6.62-3.62-4.18Z"/></svg>""",
-    "window": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="{color}" width="18px" height="18px"><path d="M2 5.5A2.5 2.5 0 0 1 4.5 3h15A2.5 2.5 0 0 1 22 5.5v13a2.5 2.5 0 0 1-2.5 2.5h-15A2.5 2.5 0 0 1 2 18.5v-13ZM4.5 4A1.5 1.5 0 0 0 3 5.5v2A.5.5 0 0 0 3.5 8h17a.5.5 0 0 0 .5-.5v-2A1.5 1.5 0 0 0 19.5 4h-15ZM21 9H3v9.5A1.5 1.5 0 0 0 4.5 20h15a1.5 1.5 0 0 0 1.5-1.5V9Z"/></svg>""",
-    "fullscreen": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="{color}" width="18px" height="18px"><path d="M2.5 3A.5.5 0 0 0 2 3.5v5a.5.5 0 0 0 1 0v-4h4a.5.5 0 0 0 0-1h-5ZM21.5 3a.5.5 0 0 0-.5.5v4a.5.5 0 0 0 1 0v-4h4a.5.5 0 0 0 0-1h-5ZM2.5 16a.5.5 0 0 0-.5.5v5a.5.5 0 0 0 .5.5h5a.5.5 0 0 0 0-1h-4v-4a.5.5 0 0 0-1 0ZM22 15.5a.5.5 0 0 0-1 0v4h-4a.5.5 0 0 0 0 1h5a.5.5 0 0 0 .5-.5v-5Z"/></svg>""",
-    "delay": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="{color}" width="18px" height="18px"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm0 19a9 9 0 1 1 9-9 9 9 0 0 1-9 9Z"/><path d="M12 6a.5.5 0 0 0-.5.5v5.79l-3.65 2.1a.5.5 0 0 0 .5.86l4-2.31A.5.5 0 0 0 12.5 12V6.5A.5.5 0 0 0 12 6Z"/></svg>""",
+    "plus": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="6" ry="6" fill="{color}"></rect><line x1="12" y1="8" x2="12" y2="16" stroke="#7c3aed" stroke-width="2.5" stroke-linecap="round"></line><line x1="8" y1="12" x2="16" y2="12" stroke="#7c3aed" stroke-width="2.5" stroke-linecap="round"></line></svg>""",
+    "rectangle": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" stroke-dasharray="4 4"></rect></svg>""",
+    "free-form": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 2.5 2.5 0 0 1-.5-4.48 2.5 2.5 0 0 1 1.4-4.5 2.5 2.5 0 0 1 4.52-5.88z" stroke-dasharray="4 4"></path></svg>""",
+    "window": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>""",
+    "fullscreen": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>""",
+    "delay": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>""",
     "pen": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path><path d="M2 2l7.586 7.586"></path><circle cx="11" cy="11" r="2"></circle></svg>""",
-    "highlighter": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l-6 6v3h9l3-3"></path><path d="M22 12l-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"></path></svg>""",
+    "highlighter": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"></path><line x1="16" y1="8" x2="2" y2="22"></line><line x1="17.5" y1="15" x2="9" y2="6.5"></line></svg>""",
     "undo": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"></path><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"></path></svg>""",
+    "redo": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"></path><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"></path></svg>""",
     "save": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>""",
-    "copy": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>"""
+    "copy": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>""",
+    "camera": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>""",
+    "video": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>"""
 }
 
 def create_svg_icon(name, color):
@@ -68,6 +70,7 @@ class AnnotationScene(QGraphicsScene):
         self.current_shape_item = None
         self.current_path = None  
         self.items_drawn = [] 
+        self.items_undone = []  # NEW: Tracks undone items
         self.base_pixmap = None
         
         self.pen_color = QColor(255, 0, 0)
@@ -98,7 +101,9 @@ class AnnotationScene(QGraphicsScene):
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
+            self.items_undone.clear()  # Clear redo stack when new drawing starts
             self.start_pos = event.scenePos()
+            
             if self.current_tool in ["pen", "highlighter"]:
                 self.current_path = QPainterPath(self.start_pos)
                 self.current_path_item = self.addPath(self.current_path, self.current_pen)
@@ -147,6 +152,13 @@ class AnnotationScene(QGraphicsScene):
         if self.items_drawn:
             item = self.items_drawn.pop()
             self.removeItem(item)
+            self.items_undone.append(item)  
+
+    def redo(self):
+        if self.items_undone:
+            item = self.items_undone.pop()
+            self.addItem(item)
+            self.items_drawn.append(item)  
 
 class ShimmerOverlay(QWidget):
     def __init__(self, parent=None):
@@ -228,7 +240,7 @@ class FloatingSnipToolbar(QWidget):
     mode_selected = pyqtSignal(str)
     cancelled = pyqtSignal()
 
-    def __init__(self, dark_mode=False, initial_mode="Rectangle mode"):
+    def __init__(self, dark_mode=False, initial_mode="Rectangle"):
         super().__init__()
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
@@ -237,7 +249,7 @@ class FloatingSnipToolbar(QWidget):
         self.bg_color = "#2b2b2b" if dark_mode else "#ffffff"
         self.border_color = "#4a4a4a" if dark_mode else "#d0d0d0"
         self.hover_color = "#414141" if dark_mode else "#f0f0f0"
-        self.active_color = "#0078d4" # Native windows blue indicator
+        self.active_color = "#0078d4" 
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
@@ -255,18 +267,15 @@ class FloatingSnipToolbar(QWidget):
         c_layout.setContentsMargins(8, 6, 8, 6)
         c_layout.setSpacing(6)
 
-        # Mode Buttons
-        self.rect_btn = self.create_btn("rectangle", "Rectangle Snip", "Rectangle mode")
-        self.free_btn = self.create_btn("free-form", "Freeform Snip", "Free-form mode")
-        self.win_btn = self.create_btn("window", "Window Snip", "Window mode")
-        self.full_btn = self.create_btn("fullscreen", "Fullscreen Snip", "Fullscreen mode")
+        self.rect_btn = self.create_btn("rectangle", "Rectangle Snip", "Rectangle")
+        self.free_btn = self.create_btn("free-form", "Freeform Snip", "Free-form")
+        self.win_btn = self.create_btn("window", "Window Snip", "Window")
+        self.full_btn = self.create_btn("fullscreen", "Fullscreen Snip", "Fullscreen")
         
-        # Separator
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.VLine)
         sep.setStyleSheet(f"background-color: {self.border_color};")
         
-        # Close Button
         self.close_btn = QPushButton("✕")
         self.close_btn.setToolTip("Cancel")
         self.close_btn.setFixedSize(36, 36)
@@ -463,6 +472,146 @@ class VideoPreviewDialog(QMainWindow):
         self.cap.release()
         super().closeEvent(event)
 
+class CaptureToggle(QWidget):
+    toggled = pyqtSignal(bool)
+
+    def __init__(self, dark_mode=False, parent=None):
+        super().__init__(parent)
+        self.dark_mode = dark_mode
+        self.is_video = False
+        self.icon_color = "#ffffff" if dark_mode else "#000000"
+        
+        # Modern Fluent UI Colors
+        self.bg_color = "#323232" if dark_mode else "#e6e6e6"
+        self.thumb_color = "#4a4a4a" if dark_mode else "#ffffff"
+        thumb_border = "none" if dark_mode else "1px solid #d0d0d0"
+
+        self.setFixedSize(96, 36)
+        self.setStyleSheet(f"background-color: {self.bg_color}; border-radius: 18px;")
+
+        # The sliding thumb background
+        self.thumb = QWidget(self)
+        self.thumb.setFixedSize(44, 32)
+        self.thumb.setStyleSheet(f"background-color: {self.thumb_color}; border-radius: 16px; border: {thumb_border};")
+        self.thumb.move(2, 2)
+
+        # Transparent overlay buttons
+        self.photo_btn = QPushButton(self)
+        self.photo_btn.setIcon(create_svg_icon("camera", self.icon_color))
+        self.photo_btn.setFixedSize(44, 32)
+        self.photo_btn.move(2, 2)
+        self.photo_btn.setStyleSheet("background: transparent; border: none;")
+        self.photo_btn.setToolTip("Snip (Photo)")
+        self.photo_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.photo_btn.clicked.connect(lambda: self.set_state(False))
+
+        self.video_btn = QPushButton(self)
+        self.video_btn.setIcon(create_svg_icon("video", self.icon_color))
+        self.video_btn.setFixedSize(44, 32)
+        self.video_btn.move(50, 2)
+        self.video_btn.setStyleSheet("background: transparent; border: none;")
+        self.video_btn.setToolTip("Record (Video)")
+        self.video_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.video_btn.clicked.connect(lambda: self.set_state(True))
+
+        # Setup the animation
+        self.animation = QPropertyAnimation(self.thumb, b"pos")
+        self.animation.setEasingCurve(QEasingCurve.Type.OutBack) # Gives a nice bouncy stop
+        self.animation.setDuration(250)
+
+    def set_state(self, is_video):
+        if self.is_video == is_video:
+            return
+        self.is_video = is_video
+        
+        end_pos = QPoint(50, 2) if is_video else QPoint(2, 2)
+        
+        self.animation.stop()
+        self.animation.setEndValue(end_pos)
+        self.animation.start()
+        
+        self.toggled.emit(self.is_video)
+
+class AnimatedNewButton(QPushButton):
+    def __init__(self, icon, text, text_color, parent=None):
+        super().__init__(parent)
+        self.custom_icon = icon
+        self.custom_text = text
+        self.text_color = text_color
+        self.setFixedHeight(36)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setObjectName("newButton") 
+        
+        self.anim_value = 0.0
+        self.animation = QVariantAnimation(self)
+        self.animation.setDuration(450)
+        self.animation.setEasingCurve(QEasingCurve.Type.OutQuart) 
+        self.animation.valueChanged.connect(self.set_anim_value)
+
+    def set_anim_value(self, val):
+        self.anim_value = val
+        self.update()
+
+    def enterEvent(self, event):
+        self.animation.stop()
+        self.animation.setStartValue(self.anim_value)
+        self.animation.setEndValue(1.0)
+        self.animation.start()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self.animation.stop()
+        self.animation.setStartValue(self.anim_value)
+        self.animation.setEndValue(0.0)
+        self.animation.start()
+        super().leaveEvent(event)
+
+    def paintEvent(self, event):
+        super().paintEvent(event) 
+        
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setClipRect(self.rect()) 
+        
+        font = self.font()
+        font.setBold(True)
+        painter.setFont(font)
+        painter.setPen(QColor(self.text_color)) 
+        fm = painter.fontMetrics()
+        
+        icon_size = 18
+        spacing = 8
+        
+        total_width = icon_size + spacing + fm.horizontalAdvance(self.custom_text)
+        start_x = (self.width() - total_width) // 2
+        
+        icon_y = (self.height() - icon_size) // 2
+        pixmap = self.custom_icon.pixmap(icon_size, icon_size)
+        painter.drawPixmap(int(start_x), int(icon_y), pixmap)
+        
+        current_x = start_x + icon_size + spacing
+        text_y = (self.height() + fm.ascent() - fm.descent()) // 2
+        
+        elements = list(self.custom_text)
+        num_elements = len(elements)
+        stagger_range = 0.5 
+        stagger_step = stagger_range / max(1, (num_elements - 1)) if num_elements > 1 else 0
+        
+        for i, char in enumerate(elements):
+            start_t = i * stagger_step
+            end_t = start_t + (1.0 - stagger_range)
+            
+            if self.anim_value < start_t: local_val = 0.0
+            elif self.anim_value > end_t: local_val = 1.0
+            else: local_val = (self.anim_value - start_t) / (end_t - start_t)
+            
+            offset_y = -local_val * self.height()
+            
+            char_w = fm.horizontalAdvance(char)
+            painter.drawText(int(current_x), int(text_y + offset_y), char)
+            painter.drawText(int(current_x), int(text_y + offset_y + self.height()), char)
+            current_x += char_w
+
 class SnippingToolGUI(QMainWindow):
     def __init__(self, dark_mode=False):
         super().__init__()
@@ -478,7 +627,7 @@ class SnippingToolGUI(QMainWindow):
         pywinstyles.change_header_color(self, header_color)
         if dark_mode: pywinstyles.apply_style(self, "dark")
 
-        self.snip_modes = ["Rectangle mode", "Free-form mode", "Window mode", "Fullscreen mode"]
+        self.snip_modes = ["Rectangle", "Free-form", "Window", "Fullscreen"]
         self.delays = ["No delay", "3 seconds", "5 seconds", "10 seconds"]
         self.current_mode = self.snip_modes[0]
         self.current_delay_sec = 0
@@ -501,10 +650,45 @@ class SnippingToolGUI(QMainWindow):
         self.hotkey_thread.trigger_snip.connect(self.start_snip)
         self.hotkey_thread.start()
 
+    def set_editing_tools_enabled(self, enabled):
+        if enabled:
+            self.bottom_toolbar.show()
+            self.h_div_bottom.show()
+            self.ocr_btn.show()
+            self.copy_btn.show()
+            self.save_btn.show()
+        else:
+            self.bottom_toolbar.hide()
+            self.h_div_bottom.hide()
+            self.ocr_btn.hide()
+            self.copy_btn.hide()
+            self.save_btn.hide()
+    
+    def update_tool_button_styles(self):
+        active_color = getattr(self.scene, 'pen_color', QColor(255, 0, 0)).name()
+        
+        dynamic_tool_style = f"""
+            QPushButton {{ background: transparent; border: none; border-radius: 6px; padding: 10px; }}
+            QPushButton:hover {{ background-color: {"#383838" if self.dark_mode else "#e0e0e0"}; }}
+            QPushButton:checked {{ background-color: {"#4a4a4a" if self.dark_mode else "#d0d0d0"}; border-bottom: 3px solid {active_color}; }}
+            QPushButton:disabled {{ opacity: 0.5; }}
+        """
+        
+        self.pen_btn.setStyleSheet(dynamic_tool_style)
+        self.highlight_btn.setStyleSheet(dynamic_tool_style)
+        self.rect_btn.setStyleSheet(dynamic_tool_style)
+        self.blur_btn.setStyleSheet(dynamic_tool_style)
+
     def setup_ui(self):
         main_layout = QVBoxLayout(self.central_widget)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
+
+        action_btn_style = f"""
+            QPushButton {{ background: transparent; border: none; border-radius: 6px; padding: 10px; }}
+            QPushButton:hover {{ background-color: {"#383838" if self.dark_mode else "#e0e0e0"}; }}
+            QPushButton:disabled {{ opacity: 0.5; }}
+        """
         
         self.top_toolbar = QWidget()
         self.top_toolbar.setFixedHeight(55)
@@ -512,28 +696,61 @@ class SnippingToolGUI(QMainWindow):
         t_layout.setContentsMargins(15, 0, 15, 0)
         t_layout.setSpacing(5)
 
-        self.new_btn = QPushButton(" New")
-        self.new_btn.setObjectName("newButton")
+        icon = create_svg_icon("plus", self.icon_color)
+        self.new_btn = AnimatedNewButton(icon, "New", self.icon_color)
+        self.new_btn.setToolTip("Start new capture")
         self.new_btn.clicked.connect(self.start_snip)
-        self.new_btn.setFixedHeight(36)
-        self.new_btn.setIcon(create_svg_icon("plus", "#ffffff" if not self.dark_mode else self.icon_color)) 
         
+        self.is_video_mode = False
+        self.capture_toggle = CaptureToggle(self.dark_mode)
+        self.capture_toggle.toggled.connect(self.set_capture_mode)
+
         self.mode_btn = QPushButton()
         self.mode_btn.setObjectName("toolbarButton")
         self.mode_btn.setFixedHeight(36)
         self.mode_btn.clicked.connect(self.show_mode_menu)
+        self.mode_btn.setToolTip("Snipping Mode")
         self.update_mode_button()
         
         self.delay_btn = QPushButton()
         self.delay_btn.setObjectName("toolbarButton")
         self.delay_btn.setFixedHeight(36)
         self.delay_btn.clicked.connect(self.show_delay_menu)
+        self.delay_btn.setToolTip("Capture Delay")
         self.update_delay_button()
 
         t_layout.addWidget(self.new_btn)
+        t_layout.addSpacing(10)
+        t_layout.addWidget(self.capture_toggle)
+        t_layout.addSpacing(10)
         t_layout.addWidget(self.mode_btn)
         t_layout.addWidget(self.delay_btn)
         t_layout.addStretch(1)
+
+        self.ocr_btn = QPushButton()
+        self.ocr_btn.setIcon(create_svg_icon("text", self.icon_color))
+        self.ocr_btn.setStyleSheet(action_btn_style)
+        self.ocr_btn.clicked.connect(self.extract_text)
+        self.ocr_btn.setToolTip("Text Actions (OCR)")
+        self.ocr_btn.hide()
+
+        self.copy_btn = QPushButton()
+        self.copy_btn.setIcon(create_svg_icon("copy", self.icon_color))
+        self.copy_btn.setStyleSheet(action_btn_style)
+        self.copy_btn.clicked.connect(self.copy_to_clipboard)
+        self.copy_btn.setToolTip("Copy to Clipboard")
+        self.copy_btn.hide()
+
+        self.save_btn = QPushButton()
+        self.save_btn.setIcon(create_svg_icon("save", self.icon_color))
+        self.save_btn.setStyleSheet(action_btn_style)
+        self.save_btn.clicked.connect(self.save_image)
+        self.save_btn.setToolTip("Save Image")
+        self.save_btn.hide()
+
+        t_layout.addWidget(self.ocr_btn)
+        t_layout.addWidget(self.copy_btn)
+        t_layout.addWidget(self.save_btn)
         
         main_layout.addWidget(self.top_toolbar)
         
@@ -600,72 +817,65 @@ class SnippingToolGUI(QMainWindow):
         b_layout.setContentsMargins(15, 0, 15, 0)
         b_layout.setSpacing(5)
 
-        btn_style = f"""
-            QPushButton {{ background: transparent; border: none; border-radius: 6px; padding: 10px; }}
-            QPushButton:hover {{ background-color: {"#383838" if self.dark_mode else "#e0e0e0"}; }}
-            QPushButton:checked {{ background-color: {"#4a4a4a" if self.dark_mode else "#d0d0d0"}; border-bottom: 3px solid {"#0078d4" if not self.dark_mode else "#4cc2ff"}; }}
-            QPushButton:disabled {{ opacity: 0.5; }}
-        """
-
         self.pen_btn = QPushButton()
         self.pen_btn.setIcon(create_svg_icon("pen", self.icon_color))
         self.pen_btn.setCheckable(True)
         self.pen_btn.setChecked(True)
-        self.pen_btn.setStyleSheet(btn_style)
+        self.pen_btn.setStyleSheet(action_btn_style)
         self.pen_btn.clicked.connect(lambda: self.switch_tool("pen"))
+        self.pen_btn.setToolTip("Pen")
 
         self.highlight_btn = QPushButton()
         self.highlight_btn.setIcon(create_svg_icon("highlighter", self.icon_color))
         self.highlight_btn.setCheckable(True)
-        self.highlight_btn.setStyleSheet(btn_style)
+        self.highlight_btn.setStyleSheet(action_btn_style)
         self.highlight_btn.clicked.connect(lambda: self.switch_tool("highlighter"))
+        self.highlight_btn.setToolTip("Highlighter")
 
         self.rect_btn = QPushButton()
         self.rect_btn.setIcon(create_svg_icon("rect_tool", self.icon_color))
         self.rect_btn.setCheckable(True)
-        self.rect_btn.setStyleSheet(btn_style)
+        self.rect_btn.setStyleSheet(action_btn_style)
         self.rect_btn.clicked.connect(lambda: self.switch_tool("rectangle"))
+        self.rect_btn.setToolTip("Rectangle Shape")
 
         self.blur_btn = QPushButton()
         self.blur_btn.setIcon(create_svg_icon("blur", self.icon_color))
         self.blur_btn.setCheckable(True)
-        self.blur_btn.setStyleSheet(btn_style)
+        self.blur_btn.setStyleSheet(action_btn_style)
         self.blur_btn.clicked.connect(lambda: self.switch_tool("blur"))
+        self.blur_btn.setToolTip("Blur/Pixelate Area")
+        self.blur_btn.clicked.connect(lambda: self.switch_tool("blur"))
+        self.blur_btn.setToolTip("Blur/Pixelate Area")
+        
+        self.update_tool_button_styles()
 
         self.color_btn = QPushButton()
         self.color_btn.setStyleSheet(f"background-color: #ff0000; border-radius: 10px; min-width: 20px; max-width: 20px; min-height: 20px; max-height: 20px; margin: 5px;")
         self.color_btn.clicked.connect(self.choose_color)
+        self.color_btn.setToolTip("Choose Color")
 
         self.undo_btn = QPushButton()
         self.undo_btn.setIcon(create_svg_icon("undo", self.icon_color))
-        self.undo_btn.setStyleSheet(btn_style)
+        self.undo_btn.setStyleSheet(action_btn_style)
         self.undo_btn.clicked.connect(self.undo_stroke)
+        self.undo_btn.setToolTip("Undo Last Action")
 
-        self.ocr_btn = QPushButton()
-        self.ocr_btn.setIcon(create_svg_icon("text", self.icon_color))
-        self.ocr_btn.setStyleSheet(btn_style)
-        self.ocr_btn.clicked.connect(self.extract_text)
+        self.redo_btn = QPushButton()
+        self.redo_btn.setIcon(create_svg_icon("redo", self.icon_color))
+        self.redo_btn.setStyleSheet(action_btn_style)
+        self.redo_btn.clicked.connect(self.redo_stroke)
+        self.redo_btn.setToolTip("Redo Last Action")
 
-        self.copy_btn = QPushButton()
-        self.copy_btn.setIcon(create_svg_icon("copy", self.icon_color))
-        self.copy_btn.setStyleSheet(btn_style)
-        self.copy_btn.clicked.connect(self.copy_to_clipboard)
-
-        self.save_btn = QPushButton()
-        self.save_btn.setIcon(create_svg_icon("save", self.icon_color))
-        self.save_btn.setStyleSheet(btn_style)
-        self.save_btn.clicked.connect(self.save_image)
-
+        b_layout.addStretch(1)
         b_layout.addWidget(self.pen_btn)
         b_layout.addWidget(self.highlight_btn)
         b_layout.addWidget(self.rect_btn)
         b_layout.addWidget(self.blur_btn)
         b_layout.addWidget(self.color_btn)
         b_layout.addWidget(self.undo_btn)
+        b_layout.addWidget(self.redo_btn)
         b_layout.addStretch(1)
-        b_layout.addWidget(self.ocr_btn)
-        b_layout.addWidget(self.copy_btn)
-        b_layout.addWidget(self.save_btn)
 
         main_layout.addWidget(self.bottom_toolbar)
 
@@ -682,13 +892,15 @@ class SnippingToolGUI(QMainWindow):
         self.bottom_toolbar.hide()
         self.h_div_bottom.hide()
 
-    def set_editing_tools_enabled(self, enabled):
-        if enabled:
-            self.bottom_toolbar.show()
-            self.h_div_bottom.show()
+    def set_capture_mode(self, is_video):
+        self.is_video_mode = is_video
+        
+        if is_video:
+            self.mode_btn.hide()
+            self.delay_btn.hide()
         else:
-            self.bottom_toolbar.hide()
-            self.h_div_bottom.hide()
+            self.mode_btn.show()
+            self.delay_btn.show()
 
     def update_mode_button(self):
         icon_name = self.current_mode.split(' ')[0].lower()
@@ -702,7 +914,7 @@ class SnippingToolGUI(QMainWindow):
     def show_mode_menu(self):
         menu = QMenu(self)
         menu.setObjectName("contextMenu")
-        actions = { "Rectangle mode": "rectangle", "Free-form mode": "free-form", "Window mode": "window", "Fullscreen mode": "fullscreen", "Record mode": "record" }
+        actions = { "Rectangle": "rectangle", "Free-form": "free-form", "Window": "window", "Fullscreen": "fullscreen", "Record": "record" }
         for text, icon_name in actions.items():
             action = QAction(create_svg_icon(icon_name, self.icon_color), text, self)
             action.triggered.connect(lambda checked, t=text: self.set_mode(t))
@@ -742,8 +954,13 @@ class SnippingToolGUI(QMainWindow):
         if color.isValid():
             self.scene.set_color(color)
             self.color_btn.setStyleSheet(f"background-color: {color.name()}; border-radius: 10px; min-width: 20px; max-width: 20px; min-height: 20px; max-height: 20px; margin: 5px;")
+            self.update_tool_button_styles() 
 
-    def undo_stroke(self): self.scene.undo()
+    def undo_stroke(self): 
+        self.scene.undo()
+
+    def redo_stroke(self): 
+        self.scene.redo()
 
     def extract_text(self):
         self.ocr_btn.setEnabled(False)
@@ -806,7 +1023,7 @@ class SnippingToolGUI(QMainWindow):
         QTimer.singleShot(200, self.launch_snip_environment)
 
     def launch_snip_environment(self):
-        if "Record" in self.current_mode:
+        if self.is_video_mode:
             self.current_overlay = VideoSnipOverlay()
             self.current_overlay.recording_completed.connect(self.on_video_completed)
             return
@@ -840,6 +1057,11 @@ class SnippingToolGUI(QMainWindow):
             
         if self.current_overlay:
             self.current_overlay.snip_completed.connect(self.on_snip_completed)
+            
+        if self.snip_toolbar:
+            self.snip_toolbar.show()
+            self.snip_toolbar.raise_()
+            self.snip_toolbar.activateWindow()
 
     def on_snip_completed(self, image):
         if self.snip_toolbar:
@@ -877,28 +1099,48 @@ class SnippingToolGUI(QMainWindow):
             self.shimmer.resize(self.view.size())
 
 DARK_THEME_STYLESHEET = """
-QWidget { color: #ffffff; font-family: "Segoe UI Variable", sans-serif; font-size: 14px; }
+QWidget { color: #ffffff; font-family: "Segoe UI Variable", "Segoe UI", sans-serif; font-size: 14px; }
 #mainContainer, #dialogContainer { background-color: transparent; border: none; }
-#newButton { background-color: #D72828; border: 1px solid #6B6B6B; border-radius: 4px; padding: 0px 16px; font-weight: 600; }
-#newButton:hover { background-color: #FF1414; }
-#toolbarButton { background-color: #323232; border: 1px solid #4a4a4a; border-radius: 4px; padding: 0 10px; text-align: left; }
-#toolbarButton:hover { background-color: #414141; }
-#placeholderFrame { background-color: #2b2b2b; border: 1px solid #3a3a3a; border-radius: 6px; }
-QMenu { background-color: #2b2b2b; border: 1px solid #4a4a4a; border-radius: 6px; padding: 4px; }
-QMenu::item { padding: 6px 16px; border-radius: 4px; }
-QMenu::item:selected { background-color: #414141; }
+
+#newButton { 
+    background-color: #2b2b2b; 
+    border: 1px solid #444444;
+    border-radius: 18px; 
+    padding: 0px 18px; 
+    font-weight: 600; 
+}
+#newButton:hover { background-color: #383838; border: 1px solid #555555; }
+#newButton:pressed { background-color: #222222; }
+
+#toolbarButton { background-color: transparent; border: 1px solid transparent; border-radius: 6px; padding: 0 12px; text-align: left; }
+#toolbarButton:hover { background-color: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.1); }
+#toolbarButton:pressed { background-color: rgba(255, 255, 255, 0.04); color: #cccccc; }
+#placeholderFrame { background-color: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; }
+QMenu { background-color: #2c2c2c; border: 1px solid #444444; border-radius: 8px; padding: 4px; }
+QMenu::item { padding: 6px 24px 6px 12px; border-radius: 4px; margin: 2px; }
+QMenu::item:selected { background-color: #404040; }
 """
 
 LIGHT_THEME_STYLESHEET = """
-QWidget { color: #000000; font-family: "Segoe UI Variable", sans-serif; font-size: 14px; }
+QWidget { color: #202020; font-family: "Segoe UI Variable", "Segoe UI", sans-serif; font-size: 14px; }
 #mainContainer, #dialogContainer { background-color: #f3f3f3; border: 1px solid #e0e0e0; border-radius: 8px; }
-#newButton { background-color: #0078d4; border: 1px solid #0078d4; border-radius: 4px; padding: 0px 16px; font-weight: 600; color: white; }
-#newButton:hover { background-color: #108ee9; }
-#toolbarButton { background-color: #ffffff; border: 1px solid #d0d0d0; border-radius: 4px; padding: 0 10px; text-align: left; }
-#toolbarButton:hover { background-color: #f0f0f0; }
-#placeholderFrame { background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 6px; }
-QMenu { background-color: #ffffff; border: 1px solid #d0d0d0; border-radius: 6px; padding: 4px; }
-QMenu::item { padding: 6px 16px; border-radius: 4px; }
+
+#newButton { 
+    background-color: #ffffff; 
+    border: 1px solid #cccccc;
+    border-radius: 18px; 
+    padding: 0px 18px; 
+    font-weight: 600; 
+}
+#newButton:hover { background-color: #f5f5f5; border: 1px solid #bbbbbb; }
+#newButton:pressed { background-color: #e5e5e5; }
+
+#toolbarButton { background-color: transparent; border: 1px solid transparent; border-radius: 6px; padding: 0 12px; text-align: left; }
+#toolbarButton:hover { background-color: rgba(0, 0, 0, 0.05); border: 1px solid rgba(0, 0, 0, 0.1); }
+#toolbarButton:pressed { background-color: rgba(0, 0, 0, 0.02); color: #555555; }
+#placeholderFrame { background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px; }
+QMenu { background-color: #ffffff; border: 1px solid #d0d0d0; border-radius: 8px; padding: 4px; }
+QMenu::item { padding: 6px 24px 6px 12px; border-radius: 4px; margin: 2px; }
 QMenu::item:selected { background-color: #f0f0f0; }
 """
 
