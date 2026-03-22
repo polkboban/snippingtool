@@ -70,7 +70,7 @@ class AnnotationScene(QGraphicsScene):
         self.current_shape_item = None
         self.current_path = None  
         self.items_drawn = [] 
-        self.items_undone = []  # NEW: Tracks undone items
+        self.items_undone = []  
         self.base_pixmap = None
         
         self.pen_color = QColor(255, 0, 0)
@@ -101,7 +101,7 @@ class AnnotationScene(QGraphicsScene):
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
-            self.items_undone.clear()  # Clear redo stack when new drawing starts
+            self.items_undone.clear()  
             self.start_pos = event.scenePos()
             
             if self.current_tool in ["pen", "highlighter"]:
@@ -514,9 +514,8 @@ class CaptureToggle(QWidget):
         self.video_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.video_btn.clicked.connect(lambda: self.set_state(True))
 
-        # Setup the animation
         self.animation = QPropertyAnimation(self.thumb, b"pos")
-        self.animation.setEasingCurve(QEasingCurve.Type.OutBack) # Gives a nice bouncy stop
+        self.animation.setEasingCurve(QEasingCurve.Type.OutBack) 
         self.animation.setDuration(250)
 
     def set_state(self, is_video):
@@ -619,7 +618,7 @@ class SnippingToolGUI(QMainWindow):
         self.icon_color = "#ffffff" if dark_mode else "#000000"
 
         self.setWindowTitle("Snipping Tool")
-        self.resize(1000, 700)
+        self.resize(590, 300)
         self.setMinimumSize(520, 300)
 
         pywinstyles.apply_style(self, "mica")
@@ -698,6 +697,7 @@ class SnippingToolGUI(QMainWindow):
 
         icon = create_svg_icon("plus", self.icon_color)
         self.new_btn = AnimatedNewButton(icon, "New", self.icon_color)
+        self.new_btn.setMinimumWidth(90)
         self.new_btn.setToolTip("Start new capture")
         self.new_btn.clicked.connect(self.start_snip)
         
@@ -719,10 +719,15 @@ class SnippingToolGUI(QMainWindow):
         self.delay_btn.setToolTip("Capture Delay")
         self.update_delay_button()
 
+        self.top_sep = QFrame()
+        self.top_sep.setFixedWidth(1)
+        sep_color = "rgba(255, 255, 255, 0.1)" if self.dark_mode else "rgba(0, 0, 0, 0.1)"
+        self.top_sep.setStyleSheet(f"background-color: {sep_color}; margin: 12px 4px;")
+
         t_layout.addWidget(self.new_btn)
         t_layout.addSpacing(10)
         t_layout.addWidget(self.capture_toggle)
-        t_layout.addSpacing(10)
+        t_layout.addWidget(self.top_sep)
         t_layout.addWidget(self.mode_btn)
         t_layout.addWidget(self.delay_btn)
         t_layout.addStretch(1)
@@ -896,11 +901,12 @@ class SnippingToolGUI(QMainWindow):
         self.is_video_mode = is_video
         
         if is_video:
-            self.mode_btn.hide()
-            self.delay_btn.hide()
+            self.mode_btn.setEnabled(False)
+            self.mode_btn.setText(" Record")
+            self.mode_btn.setIcon(create_svg_icon("record", self.icon_color))
         else:
-            self.mode_btn.show()
-            self.delay_btn.show()
+            self.mode_btn.setEnabled(True)
+            self.update_mode_button()
 
     def update_mode_button(self):
         icon_name = self.current_mode.split(' ')[0].lower()
@@ -914,7 +920,7 @@ class SnippingToolGUI(QMainWindow):
     def show_mode_menu(self):
         menu = QMenu(self)
         menu.setObjectName("contextMenu")
-        actions = { "Rectangle": "rectangle", "Free-form": "free-form", "Window": "window", "Fullscreen": "fullscreen", "Record": "record" }
+        actions = { "Rectangle": "rectangle", "Free-form": "free-form", "Window": "window", "Fullscreen": "fullscreen" }
         for text, icon_name in actions.items():
             action = QAction(create_svg_icon(icon_name, self.icon_color), text, self)
             action.triggered.connect(lambda checked, t=text: self.set_mode(t))
@@ -1076,6 +1082,13 @@ class SnippingToolGUI(QMainWindow):
             self.stacked_widget.setCurrentIndex(1)
             self.set_editing_tools_enabled(True)
             self.view.fitInView(self.scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
+
+            self.resize(1000, 600)
+            
+            screen_geom = QApplication.primaryScreen().availableGeometry()
+            window_geom = self.frameGeometry()
+            window_geom.moveCenter(screen_geom.center())
+            self.move(window_geom.topLeft())
             
         self.showNormal()
         self.activateWindow()
