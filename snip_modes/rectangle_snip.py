@@ -18,6 +18,7 @@ class RectangleSnipOverlay(QWidget):
             self.screen_pixmap = screen_pixmap
         else:
             self.screen_pixmap = QApplication.primaryScreen().grabWindow(0)
+        self.screen_pixmap.setDevicePixelRatio(self.devicePixelRatioF())
 
         if self.delay > 0:
             QTimer.singleShot(self.delay * 1000, self.showFullScreen)
@@ -83,9 +84,16 @@ class RectangleSnipOverlay(QWidget):
                 painter.drawText(bg_rect, Qt.AlignmentFlag.AlignCenter, text)
 
         mouse_pos = self.mapFromGlobal(self.cursor().pos())
+        dpr = self.devicePixelRatioF()
         zoom_size = 40
-        zoom_rect = QRect(mouse_pos.x() - zoom_size//2, mouse_pos.y() - zoom_size//2, zoom_size, zoom_size)
+        
+        physical_x = int(mouse_pos.x() * dpr)
+        physical_y = int(mouse_pos.y() * dpr)
+        physical_zoom_size = int(zoom_size * dpr)
+        
+        zoom_rect = QRect(physical_x - physical_zoom_size//2, physical_y - physical_zoom_size//2, physical_zoom_size, physical_zoom_size)
         zoomed_pixmap = self.screen_pixmap.copy(zoom_rect).scaled(160, 160, Qt.AspectRatioMode.KeepAspectRatio)
+        zoomed_pixmap.setDevicePixelRatio(dpr) 
         
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         loupe_rect = QRect(mouse_pos.x() + 20, mouse_pos.y() + 20, 160, 160)
@@ -129,7 +137,10 @@ class RectangleSnipOverlay(QWidget):
         width, height = x2 - x1, y2 - y1
 
         if width > 0 and height > 0:
-            screenshot = self.screen_pixmap.copy(QRect(x1, y1, width, height))
+            dpr = self.devicePixelRatioF()
+            capture_rect = QRect(int(x1 * dpr), int(y1 * dpr), int(width * dpr), int(height * dpr))
+            screenshot = self.screen_pixmap.copy(capture_rect)
+            screenshot.setDevicePixelRatio(dpr)
             self.snip_completed.emit(screenshot)
         else:
             self.snip_completed.emit(None)

@@ -44,7 +44,7 @@ class FreeformSnipOverlay(QWidget):
 
         painter.fillPath(overlay_path, QColor(0, 0, 0, 100))
 
-        pen = QPen(QColor(0, 255, 0), 2)
+        pen = QPen(QColor(255, 255, 255), 2)
         painter.setPen(pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawPath(self.path)
