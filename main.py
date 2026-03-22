@@ -8,7 +8,7 @@ from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QMenu, QMessageBox, QFileDialog, QFrame,
-    QGraphicsView, QGraphicsScene, QGraphicsDropShadowEffect, QStackedWidget, QGraphicsRectItem
+    QGraphicsView, QGraphicsScene, QGraphicsDropShadowEffect, QStackedWidget, QGraphicsRectItem,QGraphicsPixmapItem
 )
 from PyQt6.QtGui import (
     QPixmap, QColor, QFont, QIcon, QPainter, QAction,
@@ -21,6 +21,10 @@ from snip_modes.window_snip import WindowSnipOverlay
 from snip_modes.video_snip import VideoSnipOverlay
 
 SVG_ICONS = {
+    "shape_rectangle": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>""",
+    "shape_ellipse": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle></svg>""",
+    "shape_line": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>""",
+    "shape_arrow": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="19" x2="19" y2="5"></line><polyline points="12 5 19 5 19 12"></polyline></svg>""",
     "play": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="{color}" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>""",
     "pause": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="{color}" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>""",
     "close" : """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x-icon lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>""",
@@ -78,6 +82,7 @@ class AnnotationScene(QGraphicsScene):
         
         self.pen_state = {"color": QColor(255, 0, 0), "width": 60}
         self.highlighter_state = {"color": QColor(255, 255, 0), "width": 140}
+        self.shape_state = {"type": "rectangle", "color": QColor(255, 0, 0), "width": 4}
         
         self.current_tool = "pen" 
         self.update_pen()
@@ -89,21 +94,31 @@ class AnnotationScene(QGraphicsScene):
             c = QColor(self.highlighter_state["color"])
             c.setAlpha(100)
             self.current_pen = QPen(c, self.highlighter_state["width"], Qt.PenStyle.SolidLine, Qt.PenCapStyle.SquareCap, Qt.PenJoinStyle.MiterJoin)
+        elif self.current_tool == "shape":
+            self.current_pen = QPen(self.shape_state["color"], self.shape_state["width"], Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
         elif self.current_tool == "blur":
             self.current_pen = QPen(QColor(100, 100, 100, 150), 2, Qt.PenStyle.DashLine)
 
     def set_color(self, color):
         if self.current_tool == "pen": self.pen_state["color"] = color
         elif self.current_tool == "highlighter": self.highlighter_state["color"] = color
+        elif self.current_tool == "shape": self.shape_state["color"] = color
         self.update_pen()
 
     def set_size(self, size):
         if self.current_tool == "pen": self.pen_state["width"] = size
         elif self.current_tool == "highlighter": self.highlighter_state["width"] = size
+        elif self.current_tool == "shape": self.shape_state["width"] = size
         self.update_pen()
 
     def set_base_pixmap(self, pixmap):
+        self.clear() 
+        self.items_drawn.clear()  
+        self.items_undone.clear() 
+        from PyQt6.QtWidgets import QGraphicsPixmapItem
         self.base_pixmap = pixmap
+        pixmap_item = QGraphicsPixmapItem(self.base_pixmap)
+        self.addItem(pixmap_item)
 
     def set_tool(self, tool_name):
         self.current_tool = tool_name
@@ -126,11 +141,26 @@ class AnnotationScene(QGraphicsScene):
                 self.current_path = QPainterPath(self.start_pos)
                 self.current_path_item = self.addPath(self.current_path, self.current_pen)
                 self.items_drawn.append(self.current_path_item)
-            elif self.current_tool in ["rectangle", "blur"]:
-                from PyQt6.QtCore import QRectF
-                self.current_shape_item = self.addRect(QRectF(self.start_pos, self.start_pos), self.current_pen)
-                if self.current_tool == "rectangle":
-                    self.items_drawn.append(self.current_shape_item)
+            elif self.current_tool in ["shape", "blur"]:
+                from PyQt6.QtWidgets import QGraphicsRectItem, QGraphicsEllipseItem, QGraphicsLineItem
+                from PyQt6.QtCore import QRectF, QLineF
+                
+                self.start_point = event.scenePos()
+                
+                self.selection_pen = QPen(QColor(0, 120, 212), 2, Qt.PenStyle.DashLine)
+                
+                shape_type = self.shape_state["type"] if self.current_tool == "shape" else "rectangle"
+                
+                if shape_type == "rectangle" or self.current_tool == "blur":
+                    self.current_shape_item = QGraphicsRectItem(QRectF(self.start_point, self.start_point))
+                elif shape_type == "ellipse":
+                    self.current_shape_item = QGraphicsEllipseItem(QRectF(self.start_point, self.start_point))
+                elif shape_type in ["line", "arrow"]:
+                    self.current_shape_item = QGraphicsLineItem(QLineF(self.start_point, self.start_point))
+                    
+                if self.current_shape_item:
+                    self.current_shape_item.setPen(self.selection_pen)
+                    self.addItem(self.current_shape_item)
                     
         super().mousePressEvent(event)
 
@@ -146,38 +176,125 @@ class AnnotationScene(QGraphicsScene):
                 from PyQt6.QtCore import QRectF
                 rect = QRectF(self.start_pos, event.scenePos()).normalized()
                 self.current_shape_item.setRect(rect)
+            elif self.current_shape_item:
+                from PyQt6.QtWidgets import QGraphicsRectItem, QGraphicsEllipseItem, QGraphicsLineItem
+                from PyQt6.QtCore import QRectF, QLineF
+                
+                end_point = event.scenePos()
+                
+                if isinstance(self.current_shape_item, (QGraphicsRectItem, QGraphicsEllipseItem)):
+                    rect = QRectF(self.start_point, end_point).normalized()
+                    self.current_shape_item.setRect(rect)
+                elif isinstance(self.current_shape_item, QGraphicsLineItem):
+                    self.current_shape_item.setLine(QLineF(self.start_point, end_point))
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
         if self.current_tool == "text_select":
             super().mouseReleaseEvent(event)
             return
+        elif self.current_tool == "shape" and self.current_shape_item:
+            from PyQt6.QtWidgets import QGraphicsRectItem, QGraphicsEllipseItem, QGraphicsLineItem, QGraphicsPathItem
+            from PyQt6.QtCore import QRectF, QLineF, QPointF
+            from PyQt6.QtGui import QPainterPath, QPolygonF
+            import math
+            
+            end_point = event.scenePos()
+            self.removeItem(self.current_shape_item)
+            self.current_shape_item = None
+            
+            final_item = None
+            shape_type = self.shape_state["type"]
+            
+            if shape_type == "rectangle":
+                rect = QRectF(self.start_point, end_point).normalized()
+                final_item = QGraphicsRectItem(rect)
+                final_item.setPen(self.current_pen)
+                
+            elif shape_type == "ellipse":
+                rect = QRectF(self.start_point, end_point).normalized()
+                final_item = QGraphicsEllipseItem(rect)
+                final_item.setPen(self.current_pen)
+                
+            elif shape_type == "line":
+                final_item = QGraphicsLineItem(QLineF(self.start_point, end_point))
+                final_item.setPen(self.current_pen)
+                
+            elif shape_type == "arrow":
+                line = QLineF(self.start_point, end_point)
+                angle = line.angle() * math.pi / 180.0
+                arrow_size = self.shape_state["width"] * 3 + 8 
+                
+                # Math to calculate the two points of the arrowhead based on line angle
+                p1 = end_point - QPointF(math.cos(angle - math.pi/6) * arrow_size, -math.sin(angle - math.pi/6) * arrow_size)
+                p2 = end_point - QPointF(math.cos(angle + math.pi/6) * arrow_size, -math.sin(angle + math.pi/6) * arrow_size)
+                
+                path = QPainterPath()
+                path.moveTo(self.start_point)
+                path.lineTo(end_point)
+                
+                arrow_head = QPolygonF([end_point, p1, p2])
+                path.addPolygon(arrow_head)
+                
+                final_item = QGraphicsPathItem(path)
+                final_item.setPen(self.current_pen)
+                final_item.setBrush(self.current_pen.color()) # Fill the arrowhead solid
+                
+            if final_item:
+                self.addItem(final_item)
+                self.items_drawn.append(final_item)
+                self.items_undone.clear()
         if event.button() == Qt.MouseButton.LeftButton:
             if self.current_tool == "blur" and self.current_shape_item:
                 rect = self.current_shape_item.rect().toRect()
+                
                 self.removeItem(self.current_shape_item)
                 self.current_shape_item = None
                 
-                if rect.width() > 0 and rect.height() > 0 and self.base_pixmap:
-                    captured_region = self.base_pixmap.copy(rect)
-                    scaled_down = captured_region.scaled(max(1, rect.width() // 10), max(1, rect.height() // 10), Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.FastTransformation)
-                    pixelated = scaled_down.scaled(rect.width(), rect.height(), Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.FastTransformation)
+                if self.base_pixmap:
+                    rect = rect.intersected(self.base_pixmap.rect())
                     
-                    from PyQt6.QtWidgets import QGraphicsPixmapItem
-                    blur_item = QGraphicsPixmapItem(pixelated)
-                    blur_item.setPos(float(rect.x()), float(rect.y()))
-                    self.addItem(blur_item)
-                    self.items_drawn.append(blur_item)
+                    if rect.width() > 0 and rect.height() > 0:
+                        cropped = self.base_pixmap.copy(rect)
+
+                        blur_strength = 120  
+                        
+                        small_w = max(1, rect.width() // blur_strength)
+                        small_h = max(1, rect.height() // blur_strength)
+                        
+                        small_img = cropped.scaled(
+                            small_w, small_h, 
+                            Qt.AspectRatioMode.IgnoreAspectRatio, 
+                            Qt.TransformationMode.FastTransformation
+                        )
+                        
+                        blurred_img = small_img.scaled(
+                            rect.width(), rect.height(), 
+                            Qt.AspectRatioMode.IgnoreAspectRatio, 
+                            Qt.TransformationMode.SmoothTransformation
+                        )
+                        
+                        blur_item = QGraphicsPixmapItem(blurred_img)
+                        blur_item.setPos(float(rect.x()), float(rect.y()))
+                        self.addItem(blur_item)
+                        
+                        self.items_drawn.append(blur_item)
+                        self.items_undone.clear()
             self.current_path_item = None
             self.current_path = None
             self.current_shape_item = None
         super().mouseReleaseEvent(event)
 
     def undo(self):
-        if self.items_drawn:
+        while self.items_drawn:
             item = self.items_drawn.pop()
-            self.removeItem(item)
-            self.items_undone.append(item)  
+            try:
+                item.scene() 
+                self.removeItem(item)
+                self.items_undone.append(item)
+                break 
+            except RuntimeError:
+                continue
 
     def redo(self):
         if self.items_undone:
@@ -806,10 +923,12 @@ class ZoomableView(QGraphicsView):
                 return True
         return super().viewportEvent(event)
 
-from PyQt6.QtWidgets import QSlider, QGridLayout
+from PyQt6.QtWidgets import QSlider, QGridLayout, QWidget, QFrame, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QColor
 
 class BrushFlyout(QWidget):
-    def __init__(self, tool_name, current_color, current_size, dark_mode, parent=None):
+    def __init__(self, tool_name, current_color, current_size, dark_mode, current_shape=None, parent=None):
         super().__init__(parent)
         self.setWindowFlags(Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint | Qt.WindowType.NoDropShadowWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
@@ -826,11 +945,7 @@ class BrushFlyout(QWidget):
         text_color = "#ffffff" if dark_mode else "#000000"
         
         self.container.setStyleSheet(f"""
-            #flyoutContainer {{
-                background-color: {bg_color};
-                border: 1px solid {border_color};
-                border-radius: 10px;
-            }}
+            #flyoutContainer {{ background-color: {bg_color}; border: 1px solid {border_color}; border-radius: 10px; }}
             QLabel {{ color: {text_color}; font-weight: 600; }}
         """)
         
@@ -842,9 +957,32 @@ class BrushFlyout(QWidget):
         c_layout.setContentsMargins(15, 15, 15, 15)
         c_layout.setSpacing(15)
         
+        if tool_name == "shape":
+            c_layout.addWidget(QLabel("Shape"))
+            s_layout = QHBoxLayout()
+            s_layout.setSpacing(8)
+            
+            shapes = ["rectangle", "ellipse", "line", "arrow"]
+            icon_color = "#ffffff" if dark_mode else "#000000"
+            
+            for s_id in shapes:
+                btn = QPushButton()
+                btn.setFixedSize(32, 32)
+                btn.setCursor(Qt.CursorShape.PointingHandCursor)
+                
+                btn.setIcon(create_svg_icon(f"shape_{s_id}", icon_color))
+                
+                bg = "#0078d4" if current_shape == s_id else ("#555555" if dark_mode else "#cccccc")
+                btn.setStyleSheet(f"QPushButton {{ background-color: {bg}; border-radius: 4px; border: none; padding: 4px; }}")
+                
+                btn.clicked.connect(lambda checked, s=s_id: self.on_shape_type_clicked(s))
+                s_layout.addWidget(btn)
+            s_layout.addStretch()
+            c_layout.addLayout(s_layout)
+        
         c_layout.addWidget(QLabel("Size"))
         self.slider = QSlider(Qt.Orientation.Horizontal)
-        self.slider.setRange(1, 200) if tool_name == "pen" else self.slider.setRange(10, 400)
+        self.slider.setRange(1, 100) if tool_name in ["pen", "shape"] else self.slider.setRange(10, 200)
         self.slider.setValue(current_size)
         self.slider.setCursor(Qt.CursorShape.PointingHandCursor)
         
@@ -861,24 +999,16 @@ class BrushFlyout(QWidget):
         grid = QGridLayout()
         grid.setSpacing(10)
         
-        colors = [
-            "#000000", "#ffffff", "#ff4343", "#ff9800", "#ffeb3b", "#4caf50", 
-            "#2196f3", "#9c27b0", "#00bcd4", "#e91e63", "#795548", "#9e9e9e"
-        ]
+        colors = ["#000000", "#ffffff", "#ff4343", "#ff9800", "#ffeb3b", "#4caf50", "#2196f3", "#9c27b0", "#00bcd4", "#e91e63", "#795548", "#9e9e9e"]
         
         row, col = 0, 0
         for hex_color in colors:
             btn = QPushButton()
             btn.setFixedSize(26, 26)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            
             border = "2px solid #0078d4" if QColor(hex_color).name() == current_color.name() else "1px solid rgba(150, 150, 150, 0.5)"
-            btn.setStyleSheet(f"""
-                QPushButton {{ background-color: {hex_color}; border-radius: 13px; border: {border}; }}
-                QPushButton:hover {{ border: 2px solid #888888; }}
-            """)
+            btn.setStyleSheet(f"QPushButton {{ background-color: {hex_color}; border-radius: 13px; border: {border}; }} QPushButton:hover {{ border: 2px solid #888888; }}")
             btn.clicked.connect(lambda checked, c=hex_color: self.on_color_clicked(c))
-            
             grid.addWidget(btn, row, col)
             col += 1
             if col > 5:
@@ -893,6 +1023,14 @@ class BrushFlyout(QWidget):
             if dark_mode: pywinstyles.apply_style(self, "dark")
         except: pass
 
+    def on_shape_type_clicked(self, shape_type):
+        if self.parent_gui:
+            self.parent_gui.scene.shape_state["type"] = shape_type
+            icon_color = "#ffffff" if self.dark_mode else "#000000"
+            self.parent_gui.rect_btn.setIcon(create_svg_icon(f"shape_{shape_type}", icon_color))
+            
+        self.close()
+
     def on_size_changed(self, val):
         if self.parent_gui: 
             self.parent_gui.scene.set_size(val)
@@ -903,7 +1041,7 @@ class BrushFlyout(QWidget):
             self.parent_gui.scene.set_color(QColor(hex_color))
             self.parent_gui.update_tool_button_styles()
             self.parent_gui.update_canvas_cursor()
-        self.close() 
+        self.close()
 
 class SnippingToolGUI(QMainWindow):
     def __init__(self, dark_mode=False):
@@ -958,6 +1096,9 @@ class SnippingToolGUI(QMainWindow):
             self.save_btn.hide()
 
     def update_canvas_cursor(self):
+        from PyQt6.QtGui import QPixmap, QPainter, QColor, QPen, QCursor
+        from PyQt6.QtCore import Qt, QPointF, QRectF
+        
         tool = getattr(self.scene, 'current_tool', 'pen')
         
         if tool in ["pen", "highlighter"]:
@@ -974,9 +1115,6 @@ class SnippingToolGUI(QMainWindow):
 
             zoom_factor = self.view.transform().m11() if hasattr(self, 'view') else 1.0
             display_size = max(4, int(size * zoom_factor)) 
-            
-            from PyQt6.QtGui import QPixmap, QPainter, QColor, QPen, QCursor
-            from PyQt6.QtCore import Qt, QPointF, QRectF
             
             pixmap_size = display_size + 4
             pixmap = QPixmap(pixmap_size, pixmap_size)
@@ -1012,6 +1150,7 @@ class SnippingToolGUI(QMainWindow):
     def update_tool_button_styles(self):
         pen_color = self.scene.pen_state["color"].name()
         hl_color = self.scene.highlighter_state["color"].name()
+        shape_color = self.scene.shape_state["color"].name()
         
         def get_style(active_color):
             return f"""
@@ -1023,7 +1162,7 @@ class SnippingToolGUI(QMainWindow):
         
         self.pen_btn.setStyleSheet(get_style(pen_color))
         self.highlight_btn.setStyleSheet(get_style(hl_color))
-        self.rect_btn.setStyleSheet(get_style("transparent"))
+        self.rect_btn.setStyleSheet(get_style(shape_color))
         self.blur_btn.setStyleSheet(get_style("transparent"))
 
     def setup_ui(self):
@@ -1073,8 +1212,9 @@ class SnippingToolGUI(QMainWindow):
         self.top_sep.setStyleSheet(f"background-color: {sep_color}; margin: 12px 4px;")
 
         t_layout.addWidget(self.new_btn)
-        t_layout.addSpacing(10)
+        t_layout.addSpacing(5)
         t_layout.addWidget(self.capture_toggle)
+        t_layout.addSpacing(1)
         t_layout.addWidget(self.top_sep)
         t_layout.addWidget(self.mode_btn)
         t_layout.addSpacing(-13)
@@ -1193,10 +1333,10 @@ class SnippingToolGUI(QMainWindow):
         self.highlight_btn.setToolTip("Highlighter")
 
         self.rect_btn = QPushButton()
-        self.rect_btn.setIcon(create_svg_icon("rect_tool", self.icon_color))
+        self.rect_btn.setIcon(create_svg_icon("shape_rectangle", self.icon_color))
         self.rect_btn.setCheckable(True)
         self.rect_btn.setStyleSheet(action_btn_style)
-        self.rect_btn.clicked.connect(lambda: self.switch_tool("rectangle"))
+        self.rect_btn.clicked.connect(lambda: self.switch_tool("shape"))
         self.rect_btn.setToolTip("Rectangle Shape")
 
         self.blur_btn = QPushButton()
@@ -1328,35 +1468,39 @@ class SnippingToolGUI(QMainWindow):
                     item.hide()
                     item.setSelected(False)
                     
-        if self.scene.current_tool == tool_name and tool_name in ["pen", "highlighter"]:
-            if tool_name == "pen":
-                self.pen_btn.setChecked(True)
-            elif tool_name == "highlighter":
-                self.highlight_btn.setChecked(True)
-                
+        if self.scene.current_tool == tool_name and tool_name in ["pen", "highlighter", "shape"]:
+            if tool_name == "pen": self.pen_btn.setChecked(True)
+            elif tool_name == "highlighter": self.highlight_btn.setChecked(True)
+            elif tool_name == "shape": self.rect_btn.setChecked(True)
             self.show_brush_flyout(tool_name)
             return
 
         self.pen_btn.setChecked(tool_name == "pen")
         self.highlight_btn.setChecked(tool_name == "highlighter")
-        self.rect_btn.setChecked(tool_name == "rectangle")
+        self.rect_btn.setChecked(tool_name == "shape")
         self.blur_btn.setChecked(tool_name == "blur")
         self.scene.set_tool(tool_name)
         self.update_tool_button_styles()
         self.update_canvas_cursor()
 
     def show_brush_flyout(self, tool_name):
+        current_shape = None
         if tool_name == "pen":
             color = self.scene.pen_state["color"]
             size = self.scene.pen_state["width"]
             btn = self.pen_btn
-        else:
+        elif tool_name == "highlighter":
             color = self.scene.highlighter_state["color"]
             size = self.scene.highlighter_state["width"]
             btn = self.highlight_btn
+        else: 
+            color = self.scene.shape_state["color"]
+            size = self.scene.shape_state["width"]
+            current_shape = self.scene.shape_state["type"]
+            btn = self.rect_btn
             
-        self.flyout = BrushFlyout(tool_name, color, size, self.dark_mode, self)
-        
+        self.flyout = BrushFlyout(tool_name, color, size, self.dark_mode, current_shape, self)
+                
         btn_pos = btn.mapToGlobal(QPoint(0, 0))
         self.flyout.adjustSize()
         x = btn_pos.x() - (self.flyout.width() // 2) + (btn.width() // 2)
