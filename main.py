@@ -8,19 +8,20 @@ from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QMenu, QMessageBox, QFileDialog, QFrame,
-    QGraphicsView, QGraphicsScene, QGraphicsDropShadowEffect, QStackedWidget
+    QGraphicsView, QGraphicsScene, QGraphicsDropShadowEffect, QStackedWidget, QGraphicsRectItem
 )
 from PyQt6.QtGui import (
     QPixmap, QColor, QFont, QIcon, QPainter, QAction,
     QPainterPath, QPen, QShortcut, QKeySequence, QLinearGradient
 )
-from PyQt6.QtCore import Qt, QTimer, QSize, QByteArray, pyqtSignal, QThread, QPropertyAnimation, QEasingCurve, QPoint, QVariantAnimation
+from PyQt6.QtCore import Qt, QTimer, QSize, QByteArray, pyqtSignal, QThread, QPropertyAnimation, QEasingCurve, QPoint, QVariantAnimation, QRectF
 from snip_modes.rectangle_snip import RectangleSnipOverlay
 from snip_modes.freeform_snip import FreeformSnipOverlay
 from snip_modes.window_snip import WindowSnipOverlay
 from snip_modes.video_snip import VideoSnipOverlay
 
 SVG_ICONS = {
+    "close" : """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x-icon lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>""",
     "record": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="4" fill="{color}"></circle></svg>""",
     "blur": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>""",
     "text": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg>""",
@@ -100,6 +101,14 @@ class AnnotationScene(QGraphicsScene):
         self.base_pixmap = pixmap
 
     def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.RightButton:
+            event.accept()
+            return
+
+        if self.current_tool == "text_select":
+            super().mousePressEvent(event) 
+            return
+
         if event.button() == Qt.MouseButton.LeftButton:
             self.items_undone.clear()  
             self.start_pos = event.scenePos()
@@ -113,9 +122,13 @@ class AnnotationScene(QGraphicsScene):
                 self.current_shape_item = self.addRect(QRectF(self.start_pos, self.start_pos), self.current_pen)
                 if self.current_tool == "rectangle":
                     self.items_drawn.append(self.current_shape_item)
+                    
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
+        if self.current_tool == "text_select":
+            super().mouseMoveEvent(event)
+            return
         if event.buttons() & Qt.MouseButton.LeftButton:
             if self.current_tool in ["pen", "highlighter"] and self.current_path_item:
                 self.current_path.lineTo(event.scenePos())
@@ -127,6 +140,9 @@ class AnnotationScene(QGraphicsScene):
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
+        if self.current_tool == "text_select":
+            super().mouseReleaseEvent(event)
+            return
         if event.button() == Qt.MouseButton.LeftButton:
             if self.current_tool == "blur" and self.current_shape_item:
                 rect = self.current_shape_item.rect().toRect()
@@ -164,7 +180,7 @@ class ShimmerOverlay(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self.offset = -300
+        self.angle = 0
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.animate)
         self.is_animating = False
@@ -172,7 +188,7 @@ class ShimmerOverlay(QWidget):
 
     def start(self):
         self.show()
-        self.offset = -300
+        self.angle = 0
         self.is_animating = True
         self.timer.start(16)
 
@@ -182,26 +198,48 @@ class ShimmerOverlay(QWidget):
         self.timer.stop()
 
     def animate(self):
-        self.offset += 15
-        if self.offset > self.width() + 300:
-            self.offset = -300
+        if self.parent() and self.size() != self.parent().size():
+            self.resize(self.parent().size())
+            
+        self.angle = (self.angle + 5) % 360
         self.update()
 
     def paintEvent(self, event):
         if not self.is_animating: return
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.fillRect(self.rect(), QColor(0, 0, 0, 80)) 
-        gradient = QLinearGradient(self.offset, 0, self.offset + 300, self.height())
-        gradient.setColorAt(0.0, QColor(255, 255, 255, 0))
-        gradient.setColorAt(0.4, QColor(0, 0, 0, 150))
-        gradient.setColorAt(0.5, QColor(255, 255, 255, 0))
-        gradient.setColorAt(0.6, QColor(0, 0, 0, 150))
-        gradient.setColorAt(1.0, QColor(255, 255, 255, 0))
-        painter.fillRect(self.rect(), gradient)
+        
+        view = self.parent()
+        if hasattr(view, 'scene') and view.scene() and not view.scene().sceneRect().isEmpty():
+            mapped_poly = view.mapFromScene(view.scene().sceneRect())
+            target_rect = mapped_poly.boundingRect()
+        else:
+            target_rect = self.rect()
+        
+        painter.fillRect(target_rect, QColor(0, 0, 0, 40)) 
+        
+        from PyQt6.QtGui import QConicalGradient
+        rect = target_rect.adjusted(2, 2, -2, -2)
+        
+        accent = QColor(0, 120, 212)
+        transparent = QColor(0, 120, 212, 0)
+        
+        center = target_rect.center().toPointF()
+        gradient = QConicalGradient(center, float(self.angle))
+        gradient.setColorAt(0.0, accent)
+        gradient.setColorAt(0.15, transparent)
+        gradient.setColorAt(0.85, transparent)
+        gradient.setColorAt(1.0, accent)
+        
+        pen = QPen(gradient, 4)
+        pen.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        
+        painter.drawRect(rect)
 
 class OCRWorker(QThread):
-    result_ready = pyqtSignal(str)
+    result_ready = pyqtSignal(list) # Changed from str to list
     error_occurred = pyqtSignal(str)
 
     def __init__(self, byte_array):
@@ -211,6 +249,7 @@ class OCRWorker(QThread):
     def run(self):
         try:
             import pytesseract
+            from pytesseract import Output
             from PIL import Image
             import io
             import os
@@ -223,8 +262,17 @@ class OCRWorker(QThread):
                 return
             
             pil_img = Image.open(io.BytesIO(self.byte_array.data()))
-            text = pytesseract.image_to_string(pil_img)
-            self.result_ready.emit(text)
+            # Get data with bounding boxes
+            data = pytesseract.image_to_data(pil_img, output_type=Output.DICT)
+            
+            results = []
+            for i in range(len(data['text'])):
+                text = data['text'][i].strip()
+                if text: # Ignore empty strings
+                    x, y, w, h = data['left'][i], data['top'][i], data['width'][i], data['height'][i]
+                    results.append({"text": text, "rect": (x, y, w, h)})
+                    
+            self.result_ready.emit(results)
         except Exception as e:
             self.error_occurred.emit(str(e))
 
@@ -276,7 +324,8 @@ class FloatingSnipToolbar(QWidget):
         sep.setFrameShape(QFrame.Shape.VLine)
         sep.setStyleSheet(f"background-color: {self.border_color};")
         
-        self.close_btn = QPushButton("✕")
+        self.close_btn = QPushButton()
+        self.close_btn.setIcon(create_svg_icon("close", self.icon_color))
         self.close_btn.setToolTip("Cancel")
         self.close_btn.setFixedSize(36, 36)
         self.close_btn.setStyleSheet(f"""
@@ -611,6 +660,57 @@ class AnimatedNewButton(QPushButton):
             painter.drawText(int(current_x), int(text_y + offset_y + self.height()), char)
             current_x += char_w
 
+class SelectableTextItem(QGraphicsRectItem):
+    def __init__(self, text, rect):
+        super().__init__(QRectF(*rect))
+        self.text_content = text
+        self.setAcceptHoverEvents(True)
+        self.setFlag(QGraphicsRectItem.GraphicsItemFlag.ItemIsSelectable, True)
+        
+        self.setPen(QPen(Qt.PenStyle.NoPen))
+        
+    def paint(self, painter, option, widget=None):
+        if self.isSelected():
+            painter.fillRect(self.rect(), QColor(0, 120, 212, 120)) 
+        elif self.isUnderMouse():
+            painter.fillRect(self.rect(), QColor(255, 255, 255, 120)) 
+        else:
+            painter.fillRect(self.rect(), QColor(255, 255, 255, 40))
+
+from PyQt6.QtGui import QNativeGestureEvent
+
+class ZoomableView(QGraphicsView):
+    def __init__(self, scene, parent=None):
+        super().__init__(scene, parent)
+        self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
+        self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
+        self.setRenderHint(QPainter.RenderHint.Antialiasing)
+        self.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+
+    def wheelEvent(self, event):
+        if event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+            zoom_in_factor = 1.15
+            zoom_out_factor = 1.0 / zoom_in_factor
+
+            if event.angleDelta().y() > 0:
+                zoom_factor = zoom_in_factor
+            else:
+                zoom_factor = zoom_out_factor
+            
+            self.scale(zoom_factor, zoom_factor)
+            event.accept()
+        else:
+            super().wheelEvent(event)
+
+    def viewportEvent(self, event):
+        if isinstance(event, QNativeGestureEvent):
+            if event.gestureType() == Qt.NativeGestureType.ZoomNativeGesture:
+                multiplier = event.value() + 1.0
+                if multiplier > 0:
+                    self.scale(multiplier, multiplier)
+                return True
+        return super().viewportEvent(event) 
+
 class SnippingToolGUI(QMainWindow):
     def __init__(self, dark_mode=False):
         super().__init__()
@@ -736,6 +836,7 @@ class SnippingToolGUI(QMainWindow):
         self.ocr_btn.setIcon(create_svg_icon("text", self.icon_color))
         self.ocr_btn.setStyleSheet(action_btn_style)
         self.ocr_btn.clicked.connect(self.extract_text)
+        self.ocr_btn.setCheckable(True)
         self.ocr_btn.setToolTip("Text Actions (OCR)")
         self.ocr_btn.hide()
 
@@ -783,7 +884,7 @@ class SnippingToolGUI(QMainWindow):
         placeholder_label.setFont(QFont("Segoe UI Variable", 16))
         pf_layout.addWidget(placeholder_label)
         
-        instruction_label = QLabel("Press Windows logo key + Shift + S to start a snip.")
+        instruction_label = QLabel("Press + New to start snipping")
         instruction_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         instruction_label.setStyleSheet("color: #a0a0a0; margin-top: 10px;")
         pf_layout.addWidget(instruction_label)
@@ -796,11 +897,12 @@ class SnippingToolGUI(QMainWindow):
         c_layout.setContentsMargins(40, 40, 40, 40)
         
         self.scene = AnnotationScene(self)
-        self.view = QGraphicsView(self.scene)
-        self.view.setRenderHint(QPainter.RenderHint.Antialiasing)
+        self.view = ZoomableView(self.scene) 
         self.view.setStyleSheet("background: transparent; border: none;")
         self.view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.view.customContextMenuRequested.connect(self.show_view_context_menu)
         
         shadow = QGraphicsDropShadowEffect()
         shadow.setBlurRadius(20)
@@ -897,6 +999,20 @@ class SnippingToolGUI(QMainWindow):
         self.bottom_toolbar.hide()
         self.h_div_bottom.hide()
 
+    def show_view_context_menu(self, pos):
+        if getattr(self.scene, 'current_tool', None) == "text_select":
+            selected_items = [item for item in self.scene.selectedItems() if isinstance(item, SelectableTextItem)]
+            if selected_items:
+                from PyQt6.QtWidgets import QMenu
+                menu = QMenu(self)
+                menu.setObjectName("contextMenu")
+                
+                copy_action = menu.addAction("Copy Selected Text")
+                action = menu.exec(self.view.mapToGlobal(pos))
+                
+                if action == copy_action:
+                    self.copy_to_clipboard()
+
     def set_capture_mode(self, is_video):
         self.is_video_mode = is_video
         
@@ -948,11 +1064,22 @@ class SnippingToolGUI(QMainWindow):
         return {0: 0, 3: 1, 5: 2, 10: 3}.get(self.current_delay_sec, 0)
 
     def switch_tool(self, tool_name):
+        if tool_name != "text_select" and self.ocr_btn.isChecked():
+            self.ocr_btn.setChecked(False)
+            from PyQt6.QtWidgets import QGraphicsView
+            self.view.setDragMode(QGraphicsView.DragMode.NoDrag)
+            if hasattr(self, 'text_items'):
+                for item in self.text_items:
+                    item.hide()
+                    item.setSelected(False)
+            
         self.pen_btn.setChecked(tool_name == "pen")
         self.highlight_btn.setChecked(tool_name == "highlighter")
         self.rect_btn.setChecked(tool_name == "rectangle")
         self.blur_btn.setChecked(tool_name == "blur")
         self.scene.set_tool(tool_name)
+
+    
 
     def choose_color(self):
         from PyQt6.QtWidgets import QColorDialog
@@ -969,27 +1096,73 @@ class SnippingToolGUI(QMainWindow):
         self.scene.redo()
 
     def extract_text(self):
-        self.ocr_btn.setEnabled(False)
-        self.shimmer.start()
-        final_image = self.get_rendered_image()
-        byte_array = QByteArray()
-        from PyQt6.QtCore import QBuffer, QIODevice
-        buffer = QBuffer(byte_array)
-        buffer.open(QIODevice.OpenModeFlag.WriteOnly)
-        final_image.save(buffer, "PNG")
-        self.ocr_thread = OCRWorker(byte_array)
-        self.ocr_thread.result_ready.connect(self.on_ocr_complete)
-        self.ocr_thread.error_occurred.connect(self.on_ocr_error)
-        self.ocr_thread.start()
+        if self.ocr_btn.isChecked():
+            if hasattr(self, 'text_items') and self.text_items:
+                self.set_text_mode(True)
+                return
+                
+            self.ocr_btn.setEnabled(False)
+            self.shimmer.start()
+            
+            final_image = self.get_rendered_image()
+            byte_array = QByteArray()
+            from PyQt6.QtCore import QBuffer, QIODevice
+            buffer = QBuffer(byte_array)
+            buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+            final_image.save(buffer, "PNG")
+            
+            self.ocr_thread = OCRWorker(byte_array)
+            self.ocr_thread.result_ready.connect(self.on_ocr_complete)
+            self.ocr_thread.error_occurred.connect(self.on_ocr_error)
+            self.ocr_thread.start()
+        else:
+            self.set_text_mode(False)
 
-    def on_ocr_complete(self, text):
+    def set_text_mode(self, enabled):
+        from PyQt6.QtWidgets import QGraphicsView
+        if enabled:
+            self.scene.set_tool("text_select")
+            self.view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
+            self.show_toast("Drag to select text")
+            
+            self.pen_btn.setChecked(False)
+            self.highlight_btn.setChecked(False)
+            self.rect_btn.setChecked(False)
+            self.blur_btn.setChecked(False)
+            
+            if hasattr(self, 'text_items'):
+                for item in self.text_items:
+                    item.show()
+        else:
+            self.view.setDragMode(QGraphicsView.DragMode.NoDrag)
+            if hasattr(self, 'text_items'):
+                for item in self.text_items:
+                    item.hide()
+                    item.setSelected(False)
+            
+            if self.scene.current_tool == "text_select":
+                self.switch_tool("pen")
+
+    def on_ocr_complete(self, text_data):
         self.shimmer.stop()
         self.ocr_btn.setEnabled(True)
-        if text.strip():
-            QApplication.clipboard().setText(text)
-            self.show_toast("Text copied to clipboard!")
-        else:
-            QMessageBox.information(self, "No Text Found", "Could not detect any text.")
+        
+        if not text_data:
+            self.ocr_btn.setChecked(False)
+            QMessageBox.information(self, "No Text Found", "Could not detect any text in the image.")
+            return
+            
+        if hasattr(self, 'text_items'):
+            for item in self.text_items:
+                self.scene.removeItem(item)
+                
+        self.text_items = []
+        for item in text_data:
+            rect_item = SelectableTextItem(item['text'], item['rect'])
+            self.scene.addItem(rect_item)
+            self.text_items.append(rect_item)
+            
+        self.set_text_mode(True)
 
     def on_ocr_error(self, error_msg):
         self.shimmer.stop()
@@ -1011,8 +1184,20 @@ class SnippingToolGUI(QMainWindow):
             self.get_rendered_image().save(path)
 
     def copy_to_clipboard(self):
+        from PyQt6.QtWidgets import QGraphicsView
+        if hasattr(self, 'text_items') and self.view.dragMode() == QGraphicsView.DragMode.RubberBandDrag:
+            selected_items = [item for item in self.scene.selectedItems() if isinstance(item, SelectableTextItem)]
+            
+            if selected_items:
+                selected_items.sort(key=lambda i: (round(i.rect().y() / 15), i.rect().x()))
+                text = " ".join([i.text_content for i in selected_items])
+                
+                QApplication.clipboard().setText(text)
+                self.show_toast("Selected text copied")
+                return
+                
         QApplication.clipboard().setPixmap(self.get_rendered_image())
-        self.show_toast("Copied to clipboard!")
+        self.show_toast("Image copied to clipboard")
 
     def show_toast(self, message):
         self.toast_label.setText(message)
@@ -1081,7 +1266,6 @@ class SnippingToolGUI(QMainWindow):
             
             self.stacked_widget.setCurrentIndex(1)
             self.set_editing_tools_enabled(True)
-            self.view.fitInView(self.scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
 
             self.resize(1000, 600)
             
@@ -1089,6 +1273,8 @@ class SnippingToolGUI(QMainWindow):
             window_geom = self.frameGeometry()
             window_geom.moveCenter(screen_geom.center())
             self.move(window_geom.topLeft())
+            
+            QTimer.singleShot(10, lambda: self.view.fitInView(self.scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio))
             
         self.showNormal()
         self.activateWindow()

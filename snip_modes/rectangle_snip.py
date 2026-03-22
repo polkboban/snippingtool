@@ -52,12 +52,13 @@ class RectangleSnipOverlay(QWidget):
                 text_height = metrics.height()
                 
                 text_x = self.end.x() + 15
-                text_y = self.end.y() + 15
+                text_y = self.end.y() - text_height - 15
                 
                 if text_x + text_width + 10 > self.width():
                     text_x = self.end.x() - text_width - 15
-                if text_y + text_height + 10 > self.height():
-                    text_y = self.end.y() - text_height - 15
+                if text_y < 10:
+                    text_y = self.end.y() + 20
+                    text_x = self.end.x() - text_width - 15
                     
                 bg_rect = QRect(text_x, text_y, text_width + 16, text_height + 8)
                 
