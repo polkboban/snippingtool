@@ -21,6 +21,8 @@ from snip_modes.window_snip import WindowSnipOverlay
 from snip_modes.video_snip import VideoSnipOverlay
 
 SVG_ICONS = {
+    "play": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="{color}" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>""",
+    "pause": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="{color}" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>""",
     "close" : """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x-icon lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>""",
     "record": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="4" fill="{color}"></circle></svg>""",
     "blur": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>""",
@@ -33,7 +35,7 @@ SVG_ICONS = {
     "fullscreen": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>""",
     "delay": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>""",
     "pen": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path><path d="M2 2l7.586 7.586"></path><circle cx="11" cy="11" r="2"></circle></svg>""",
-    "highlighter": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"></path><line x1="16" y1="8" x2="2" y2="22"></line><line x1="17.5" y1="15" x2="9" y2="6.5"></line></svg>""",
+    "highlighter": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-highlighter-icon lucide-highlighter"><path d="m9 11-6 6v3h9l3-3"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/></svg>""",
     "undo": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"></path><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"></path></svg>""",
     "redo": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"></path><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"></path></svg>""",
     "save": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>""",
@@ -74,32 +76,39 @@ class AnnotationScene(QGraphicsScene):
         self.items_undone = []  
         self.base_pixmap = None
         
-        self.pen_color = QColor(255, 0, 0)
-        self.pen_width = 4
+        self.pen_state = {"color": QColor(255, 0, 0), "width": 60}
+        self.highlighter_state = {"color": QColor(255, 255, 0), "width": 140}
+        
         self.current_tool = "pen" 
         self.update_pen()
 
     def update_pen(self):
-        self.current_pen = QPen(self.pen_color, self.pen_width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
-        if self.current_tool == "highlighter":
-            color = QColor(self.pen_color)
-            color.setAlpha(100)
-            self.current_pen.setColor(color)
-            self.current_pen.setWidth(15)
+        if self.current_tool == "pen":
+            self.current_pen = QPen(self.pen_state["color"], self.pen_state["width"], Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+        elif self.current_tool == "highlighter":
+            c = QColor(self.highlighter_state["color"])
+            c.setAlpha(100)
+            self.current_pen = QPen(c, self.highlighter_state["width"], Qt.PenStyle.SolidLine, Qt.PenCapStyle.SquareCap, Qt.PenJoinStyle.MiterJoin)
         elif self.current_tool == "blur":
             self.current_pen = QPen(QColor(100, 100, 100, 150), 2, Qt.PenStyle.DashLine)
 
     def set_color(self, color):
-        self.pen_color = color
+        if self.current_tool == "pen": self.pen_state["color"] = color
+        elif self.current_tool == "highlighter": self.highlighter_state["color"] = color
         self.update_pen()
 
-    def set_tool(self, tool_name):
-        self.current_tool = tool_name
+    def set_size(self, size):
+        if self.current_tool == "pen": self.pen_state["width"] = size
+        elif self.current_tool == "highlighter": self.highlighter_state["width"] = size
         self.update_pen()
 
     def set_base_pixmap(self, pixmap):
         self.base_pixmap = pixmap
 
+    def set_tool(self, tool_name):
+        self.current_tool = tool_name
+        self.update_pen()
+        
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.RightButton:
             event.accept()
@@ -382,17 +391,24 @@ class FloatingSnipToolbar(QWidget):
                 """)
 
 import cv2
+from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+                             QPushButton, QLabel, QSlider, QGraphicsDropShadowEffect,
+                             QFileDialog, QFrame)
+from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtGui import QImage, QPixmap
 
 class VideoPreviewDialog(QMainWindow):
     def __init__(self, video_path, dark_mode=False, parent=None):
         super().__init__(parent=parent)
         self.setWindowModality(Qt.WindowModality.ApplicationModal)
         self.setWindowTitle("Snipping Tool - Video Preview")
-        self.resize(1000, 700)
+        self.resize(1000, 300)
         
         self.video_path = video_path
         self.dark_mode = dark_mode
+        self.icon_color = "#ffffff" if dark_mode else "#000000"
         self.is_playing = True
+        self.was_playing_before_scrub = False
 
         import pywinstyles
         pywinstyles.apply_style(self, "mica")
@@ -407,6 +423,7 @@ class VideoPreviewDialog(QMainWindow):
         
         self.cap = cv2.VideoCapture(self.video_path)
         self.fps = self.cap.get(cv2.CAP_PROP_FPS) or 20.0
+        self.total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
         
         self.setup_ui()
         
@@ -419,51 +436,10 @@ class VideoPreviewDialog(QMainWindow):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        toolbar = QWidget()
-        toolbar.setFixedHeight(55)
-        t_layout = QHBoxLayout(toolbar)
-        t_layout.setContentsMargins(15, 0, 15, 0)
-
-        btn_style = f"""
-            QPushButton {{
-                background: transparent;
-                border: none;
-                border-radius: 6px;
-                padding: 10px;
-                color: {"#ffffff" if self.dark_mode else "#000000"};
-                font-weight: bold;
-            }}
-            QPushButton:hover {{
-                background-color: {"#383838" if self.dark_mode else "#e0e0e0"};
-            }}
-        """
-
-        self.play_btn = QPushButton("⏸ Pause")
-        self.play_btn.setStyleSheet(btn_style)
-        self.play_btn.clicked.connect(self.toggle_playback)
-
-        self.save_btn = QPushButton("💾 Save Video As...")
-        self.save_btn.setStyleSheet(btn_style)
-        self.save_btn.clicked.connect(self.save_video)
-
-        t_layout.addWidget(self.play_btn)
-        t_layout.addStretch(1)
-        t_layout.addWidget(self.save_btn)
-
-        main_layout.addWidget(toolbar)
-
-        divider = QFrame()
-        divider.setFrameShape(QFrame.Shape.HLine)
-        divider.setStyleSheet(f"background-color: {'#3a3a3a' if self.dark_mode else '#e0e0e0'};")
-        divider.setFixedHeight(1)
-        main_layout.addWidget(divider)
-
-        bg_color = 'transparent'
         self.player_container = QWidget()
-        self.player_container.setStyleSheet(f"background-color: {bg_color};")
-        
+        self.player_container.setStyleSheet("background-color: transparent;")
         p_layout = QVBoxLayout(self.player_container)
-        p_layout.setContentsMargins(40, 40, 40, 40)
+        p_layout.setContentsMargins(40, 40, 40, 20)
 
         self.video_label = QLabel()
         self.video_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -477,22 +453,117 @@ class VideoPreviewDialog(QMainWindow):
         p_layout.addWidget(self.video_label)
         main_layout.addWidget(self.player_container, 1)
 
+        control_bar = QWidget()
+        control_bar.setFixedHeight(65)
+        c_layout = QHBoxLayout(control_bar)
+        c_layout.setContentsMargins(20, 0, 20, 15)
+        c_layout.setSpacing(15)
+
+        btn_style = f"""
+            QPushButton {{
+                background: transparent;
+                border: none;
+                border-radius: 6px;
+                padding: 8px;
+            }}
+            QPushButton:hover {{
+                background-color: {"#383838" if self.dark_mode else "#e0e0e0"};
+            }}
+        """
+
+        self.play_btn = QPushButton()
+        self.play_btn.setIcon(create_svg_icon("pause", self.icon_color))
+        self.play_btn.setFixedSize(40, 40)
+        self.play_btn.setStyleSheet(btn_style)
+        self.play_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.play_btn.clicked.connect(self.toggle_playback)
+        self.play_btn.setToolTip("Play/Pause")
+
+        time_color = "#ffffff" if self.dark_mode else "#000000"
+        
+        self.current_time_lbl = QLabel("00:00")
+        self.current_time_lbl.setStyleSheet(f"color: {time_color};")
+        self.current_time_lbl.setMinimumWidth(45)
+        self.current_time_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        
+        self.total_time_lbl = QLabel(self.format_time(self.total_frames / self.fps if self.fps else 0))
+        self.total_time_lbl.setStyleSheet(f"color: {time_color};")
+        self.total_time_lbl.setMinimumWidth(45)
+        self.total_time_lbl.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+
+        self.slider = QSlider(Qt.Orientation.Horizontal)
+        self.slider.setRange(0, max(0, self.total_frames - 1))
+        self.slider.setCursor(Qt.CursorShape.PointingHandCursor)
+        
+        slider_track = "#444444" if self.dark_mode else "#cccccc"
+        self.slider.setStyleSheet(f"""
+            QSlider::groove:horizontal {{
+                border-radius: 2px;
+                height: 4px;
+                background: {slider_track};
+            }}
+            QSlider::handle:horizontal {{
+                background: #7800d4;
+                width: 14px;
+                height: 14px;
+                margin: -5px 0;
+                border-radius: 7px;
+            }}
+            QSlider::sub-page:horizontal {{
+                background: #7800d4;
+                border-radius: 2px;
+            }}
+        """)
+        
+        self.slider.sliderPressed.connect(self.on_slider_pressed)
+        self.slider.sliderMoved.connect(self.on_slider_moved)
+        self.slider.sliderReleased.connect(self.on_slider_released)
+
+        self.save_btn = QPushButton()
+        self.save_btn.setIcon(create_svg_icon("save", self.icon_color))
+        self.save_btn.setFixedSize(40, 40)
+        self.save_btn.setStyleSheet(btn_style)
+        self.save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.save_btn.clicked.connect(self.save_video)
+        self.save_btn.setToolTip("Save Video")
+
+        c_layout.addWidget(self.play_btn)
+        c_layout.addWidget(self.current_time_lbl)
+        c_layout.addWidget(self.slider, 1)
+        c_layout.addWidget(self.total_time_lbl)
+        c_layout.addWidget(self.save_btn)
+
+        main_layout.addWidget(control_bar)
+
+    def format_time(self, seconds):
+        m = int(seconds // 60)
+        s = int(seconds % 60)
+        return f"{m:02d}:{s:02d}"
+
     def update_frame(self):
         if not self.is_playing:
             return
             
-        ret, frame = self.cap.read()
+        current_frame = int(self.cap.get(cv2.CAP_PROP_POS_FRAMES))
         
-        if not ret:
+        if current_frame >= self.total_frames - 1:
             self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-            ret, frame = self.cap.read()
+            current_frame = 0
             
+        self.read_and_display()
+        
+        self.slider.blockSignals(True)
+        self.slider.setValue(current_frame)
+        self.slider.blockSignals(False)
+        self.current_time_lbl.setText(self.format_time(current_frame / self.fps if self.fps else 0))
+
+    def read_and_display(self):
+        ret, frame = self.cap.read()
         if ret:
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             h, w, ch = frame.shape
             bytes_per_line = ch * w
             
-            from PyQt6.QtGui import QImage, QPixmap
             qimg = QImage(frame.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
             pixmap = QPixmap.fromImage(qimg)
             
@@ -504,7 +575,22 @@ class VideoPreviewDialog(QMainWindow):
 
     def toggle_playback(self):
         self.is_playing = not self.is_playing
-        self.play_btn.setText("⏸ Pause" if self.is_playing else "▶ Play")
+        icon_name = "pause" if self.is_playing else "play"
+        self.play_btn.setIcon(create_svg_icon(icon_name, self.icon_color))
+
+    def on_slider_pressed(self):
+        self.was_playing_before_scrub = self.is_playing
+        if self.is_playing:
+            self.toggle_playback()
+
+    def on_slider_moved(self, position):
+        self.cap.set(cv2.CAP_PROP_POS_FRAMES, position)
+        self.read_and_display()
+        self.current_time_lbl.setText(self.format_time(position / self.fps if self.fps else 0))
+
+    def on_slider_released(self):
+        if self.was_playing_before_scrub:
+            self.toggle_playback()
 
     def save_video(self):
         import shutil
@@ -520,6 +606,13 @@ class VideoPreviewDialog(QMainWindow):
         self.timer.stop()
         self.cap.release()
         super().closeEvent(event)
+        
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if not self.is_playing:
+            current = self.cap.get(cv2.CAP_PROP_POS_FRAMES)
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, max(0, current - 1))
+            self.read_and_display()
 
 class CaptureToggle(QWidget):
     toggled = pyqtSignal(bool)
@@ -691,14 +784,13 @@ class ZoomableView(QGraphicsView):
         if event.modifiers() == Qt.KeyboardModifier.ControlModifier:
             zoom_in_factor = 1.15
             zoom_out_factor = 1.0 / zoom_in_factor
-
-            if event.angleDelta().y() > 0:
-                zoom_factor = zoom_in_factor
-            else:
-                zoom_factor = zoom_out_factor
+            zoom_factor = zoom_in_factor if event.angleDelta().y() > 0 else zoom_out_factor
             
             self.scale(zoom_factor, zoom_factor)
             event.accept()
+            
+            if hasattr(self.window(), 'update_canvas_cursor'):
+                self.window().update_canvas_cursor()
         else:
             super().wheelEvent(event)
 
@@ -708,8 +800,109 @@ class ZoomableView(QGraphicsView):
                 multiplier = event.value() + 1.0
                 if multiplier > 0:
                     self.scale(multiplier, multiplier)
+                    if hasattr(self.window(), 'update_canvas_cursor'):
+                        self.window().update_canvas_cursor()
                 return True
-        return super().viewportEvent(event) 
+        return super().viewportEvent(event)
+
+from PyQt6.QtWidgets import QSlider, QGridLayout
+
+class BrushFlyout(QWidget):
+    def __init__(self, tool_name, current_color, current_size, dark_mode, parent=None):
+        super().__init__(parent)
+        self.setWindowFlags(Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint | Qt.WindowType.NoDropShadowWindowHint)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        
+        self.tool_name = tool_name
+        self.dark_mode = dark_mode
+        self.parent_gui = parent
+        
+        self.container = QFrame(self)
+        self.container.setObjectName("flyoutContainer")
+        
+        bg_color = "rgba(40, 40, 40, 200)" if dark_mode else "rgba(240, 240, 240, 200)"
+        border_color = "#555555" if dark_mode else "#cccccc"
+        text_color = "#ffffff" if dark_mode else "#000000"
+        
+        self.container.setStyleSheet(f"""
+            #flyoutContainer {{
+                background-color: {bg_color};
+                border: 1px solid {border_color};
+                border-radius: 10px;
+            }}
+            QLabel {{ color: {text_color}; font-weight: 600; }}
+        """)
+        
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.container)
+        
+        c_layout = QVBoxLayout(self.container)
+        c_layout.setContentsMargins(15, 15, 15, 15)
+        c_layout.setSpacing(15)
+        
+        c_layout.addWidget(QLabel("Size"))
+        self.slider = QSlider(Qt.Orientation.Horizontal)
+        self.slider.setRange(1, 200) if tool_name == "pen" else self.slider.setRange(10, 400)
+        self.slider.setValue(current_size)
+        self.slider.setCursor(Qt.CursorShape.PointingHandCursor)
+        
+        slider_track = "#444444" if dark_mode else "#cccccc"
+        self.slider.setStyleSheet(f"""
+            QSlider::groove:horizontal {{ border-radius: 2px; height: 4px; background: {slider_track}; }}
+            QSlider::handle:horizontal {{ background: #0078d4; width: 16px; height: 16px; margin: -6px 0; border-radius: 8px; }}
+            QSlider::sub-page:horizontal {{ background: #0078d4; border-radius: 2px; }}
+        """)
+        self.slider.valueChanged.connect(self.on_size_changed)
+        c_layout.addWidget(self.slider)
+        
+        c_layout.addWidget(QLabel("Colors"))
+        grid = QGridLayout()
+        grid.setSpacing(10)
+        
+        colors = [
+            "#000000", "#ffffff", "#ff4343", "#ff9800", "#ffeb3b", "#4caf50", 
+            "#2196f3", "#9c27b0", "#00bcd4", "#e91e63", "#795548", "#9e9e9e"
+        ]
+        
+        row, col = 0, 0
+        for hex_color in colors:
+            btn = QPushButton()
+            btn.setFixedSize(26, 26)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            
+            border = "2px solid #0078d4" if QColor(hex_color).name() == current_color.name() else "1px solid rgba(150, 150, 150, 0.5)"
+            btn.setStyleSheet(f"""
+                QPushButton {{ background-color: {hex_color}; border-radius: 13px; border: {border}; }}
+                QPushButton:hover {{ border: 2px solid #888888; }}
+            """)
+            btn.clicked.connect(lambda checked, c=hex_color: self.on_color_clicked(c))
+            
+            grid.addWidget(btn, row, col)
+            col += 1
+            if col > 5:
+                col = 0
+                row += 1
+                
+        c_layout.addLayout(grid)
+        
+        import pywinstyles
+        try:
+            pywinstyles.apply_style(self, "mica")
+            if dark_mode: pywinstyles.apply_style(self, "dark")
+        except: pass
+
+    def on_size_changed(self, val):
+        if self.parent_gui: 
+            self.parent_gui.scene.set_size(val)
+            self.parent_gui.update_canvas_cursor()
+            
+    def on_color_clicked(self, hex_color):
+        if self.parent_gui:
+            self.parent_gui.scene.set_color(QColor(hex_color))
+            self.parent_gui.update_tool_button_styles()
+            self.parent_gui.update_canvas_cursor()
+        self.close() 
 
 class SnippingToolGUI(QMainWindow):
     def __init__(self, dark_mode=False):
@@ -762,21 +955,75 @@ class SnippingToolGUI(QMainWindow):
             self.ocr_btn.hide()
             self.copy_btn.hide()
             self.save_btn.hide()
+
+    def update_canvas_cursor(self):
+        tool = getattr(self.scene, 'current_tool', 'pen')
+        
+        if tool in ["pen", "highlighter"]:
+            if tool == "pen":
+                size = self.scene.pen_state["width"]
+                color = self.scene.pen_state["color"]
+                alpha = 255
+                is_rect = False
+            else:
+                size = self.scene.highlighter_state["width"]
+                color = self.scene.highlighter_state["color"]
+                alpha = 100
+                is_rect = True
+
+            zoom_factor = self.view.transform().m11() if hasattr(self, 'view') else 1.0
+            display_size = max(4, int(size * zoom_factor)) 
+            
+            from PyQt6.QtGui import QPixmap, QPainter, QColor, QPen, QCursor
+            from PyQt6.QtCore import Qt, QPointF, QRectF
+            
+            pixmap_size = display_size + 4
+            pixmap = QPixmap(pixmap_size, pixmap_size)
+            pixmap.fill(Qt.GlobalColor.transparent)
+
+            painter = QPainter(pixmap)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            
+            c = QColor(color)
+            c.setAlpha(alpha)
+            painter.setBrush(c)
+
+            border_color = QColor(0, 0, 0, 150) if c.lightness() > 128 else QColor(255, 255, 255, 150)
+            painter.setPen(QPen(border_color, 1))
+
+            center = pixmap_size / 2.0
+            
+            if is_rect:
+                rect_x = center - (display_size / 2.0)
+                rect_y = center - (display_size / 2.0)
+                painter.drawRect(QRectF(rect_x, rect_y, display_size, display_size))
+            else:
+                painter.drawEllipse(QPointF(center, center), display_size / 2.0, display_size / 2.0)
+                
+            painter.end()
+
+            self.view.viewport().setCursor(QCursor(pixmap, int(center), int(center)))
+        elif tool == "text_select":
+            self.view.viewport().setCursor(Qt.CursorShape.IBeamCursor)
+        else:
+            self.view.viewport().setCursor(Qt.CursorShape.CrossCursor)
     
     def update_tool_button_styles(self):
-        active_color = getattr(self.scene, 'pen_color', QColor(255, 0, 0)).name()
+        pen_color = self.scene.pen_state["color"].name()
+        hl_color = self.scene.highlighter_state["color"].name()
         
-        dynamic_tool_style = f"""
-            QPushButton {{ background: transparent; border: none; border-radius: 6px; padding: 10px; }}
-            QPushButton:hover {{ background-color: {"#383838" if self.dark_mode else "#e0e0e0"}; }}
-            QPushButton:checked {{ background-color: {"#4a4a4a" if self.dark_mode else "#d0d0d0"}; border-bottom: 3px solid {active_color}; }}
-            QPushButton:disabled {{ opacity: 0.5; }}
-        """
+        def get_style(active_color):
+            return f"""
+                QPushButton {{ background: transparent; border: none; border-radius: 6px; padding: 10px; }}
+                QPushButton:hover {{ background-color: {"#383838" if self.dark_mode else "#e0e0e0"}; }}
+                QPushButton:checked {{ background-color: {"#4a4a4a" if self.dark_mode else "#d0d0d0"}; border-bottom: 3px solid {active_color}; }}
+                QPushButton:disabled {{ opacity: 0.5; }}
+            """
         
-        self.pen_btn.setStyleSheet(dynamic_tool_style)
-        self.highlight_btn.setStyleSheet(dynamic_tool_style)
-        self.rect_btn.setStyleSheet(dynamic_tool_style)
-        self.blur_btn.setStyleSheet(dynamic_tool_style)
+        self.pen_btn.setStyleSheet(get_style(pen_color))
+        self.highlight_btn.setStyleSheet(get_style(hl_color))
+        self.rect_btn.setStyleSheet(get_style("transparent"))
+        self.blur_btn.setStyleSheet(get_style("transparent"))
 
     def setup_ui(self):
         main_layout = QVBoxLayout(self.central_widget)
@@ -829,8 +1076,9 @@ class SnippingToolGUI(QMainWindow):
         t_layout.addWidget(self.capture_toggle)
         t_layout.addWidget(self.top_sep)
         t_layout.addWidget(self.mode_btn)
+        t_layout.addSpacing(-13)
         t_layout.addWidget(self.delay_btn)
-        t_layout.addStretch(1)
+        t_layout.addStretch(0)
 
         self.ocr_btn = QPushButton()
         self.ocr_btn.setIcon(create_svg_icon("text", self.icon_color))
@@ -861,8 +1109,8 @@ class SnippingToolGUI(QMainWindow):
         main_layout.addWidget(self.top_toolbar)
         
         h_div_top = QFrame()
-        h_div_top.setFrameShape(QFrame.Shape.HLine)
-        h_div_top.setStyleSheet(f"background-color: {'#3a3a3a' if self.dark_mode else '#e0e0e0'};")
+        h_div_top.setFixedHeight(1)
+        h_div_top.setStyleSheet(f"background-color: {'#3a3a3a' if self.dark_mode else '#e0e0e0'}; border: none;")
         main_layout.addWidget(h_div_top)
 
         self.stacked_widget = QStackedWidget()
@@ -893,6 +1141,10 @@ class SnippingToolGUI(QMainWindow):
         self.stacked_widget.addWidget(self.placeholder_page)
 
         self.canvas_page = QWidget()
+        self.canvas_page.setObjectName("canvasPage")
+        canvas_bg = "#191919" if self.dark_mode else "#e6e6e6"
+        self.canvas_page.setStyleSheet(f"#canvasPage {{ background-color: {canvas_bg}; }}")
+        
         c_layout = QVBoxLayout(self.canvas_page)
         c_layout.setContentsMargins(40, 40, 40, 40)
         
@@ -914,8 +1166,8 @@ class SnippingToolGUI(QMainWindow):
         self.stacked_widget.addWidget(self.canvas_page)
 
         self.h_div_bottom = QFrame()
-        self.h_div_bottom.setFrameShape(QFrame.Shape.HLine)
-        self.h_div_bottom.setStyleSheet(f"background-color: {'#3a3a3a' if self.dark_mode else '#e0e0e0'};")
+        self.h_div_bottom.setFixedHeight(1)
+        self.h_div_bottom.setStyleSheet(f"background-color: {'#3a3a3a' if self.dark_mode else '#e0e0e0'}; border: none;")
         main_layout.addWidget(self.h_div_bottom)
 
         self.bottom_toolbar = QWidget()
@@ -957,10 +1209,10 @@ class SnippingToolGUI(QMainWindow):
         
         self.update_tool_button_styles()
 
-        self.color_btn = QPushButton()
-        self.color_btn.setStyleSheet(f"background-color: #ff0000; border-radius: 10px; min-width: 20px; max-width: 20px; min-height: 20px; max-height: 20px; margin: 5px;")
-        self.color_btn.clicked.connect(self.choose_color)
-        self.color_btn.setToolTip("Choose Color")
+        self.b_sep_sep = QFrame()
+        self.b_sep_sep.setFixedWidth(1)
+        sep_color = "rgba(255, 255, 255, 0.1)" if self.dark_mode else "rgba(0, 0, 0, 0.1)"
+        self.b_sep_sep.setStyleSheet(f"background-color: {sep_color}; margin: 12px 4px;")
 
         self.undo_btn = QPushButton()
         self.undo_btn.setIcon(create_svg_icon("undo", self.icon_color))
@@ -979,7 +1231,9 @@ class SnippingToolGUI(QMainWindow):
         b_layout.addWidget(self.highlight_btn)
         b_layout.addWidget(self.rect_btn)
         b_layout.addWidget(self.blur_btn)
-        b_layout.addWidget(self.color_btn)
+        b_layout.addSpacing(10)
+        b_layout.addWidget(self.b_sep_sep)
+        b_layout.addSpacing(10)
         b_layout.addWidget(self.undo_btn)
         b_layout.addWidget(self.redo_btn)
         b_layout.addStretch(1)
@@ -1072,12 +1326,43 @@ class SnippingToolGUI(QMainWindow):
                 for item in self.text_items:
                     item.hide()
                     item.setSelected(False)
-            
+                    
+        if self.scene.current_tool == tool_name and tool_name in ["pen", "highlighter"]:
+            if tool_name == "pen":
+                self.pen_btn.setChecked(True)
+            elif tool_name == "highlighter":
+                self.highlight_btn.setChecked(True)
+                
+            self.show_brush_flyout(tool_name)
+            return
+
         self.pen_btn.setChecked(tool_name == "pen")
         self.highlight_btn.setChecked(tool_name == "highlighter")
         self.rect_btn.setChecked(tool_name == "rectangle")
         self.blur_btn.setChecked(tool_name == "blur")
         self.scene.set_tool(tool_name)
+        self.update_tool_button_styles()
+        self.update_canvas_cursor()
+
+    def show_brush_flyout(self, tool_name):
+        if tool_name == "pen":
+            color = self.scene.pen_state["color"]
+            size = self.scene.pen_state["width"]
+            btn = self.pen_btn
+        else:
+            color = self.scene.highlighter_state["color"]
+            size = self.scene.highlighter_state["width"]
+            btn = self.highlight_btn
+            
+        self.flyout = BrushFlyout(tool_name, color, size, self.dark_mode, self)
+        
+        btn_pos = btn.mapToGlobal(QPoint(0, 0))
+        self.flyout.adjustSize()
+        x = btn_pos.x() - (self.flyout.width() // 2) + (btn.width() // 2)
+        y = btn_pos.y() - self.flyout.height() - 10
+        
+        self.flyout.move(x, y)
+        self.flyout.show()
 
     
 
@@ -1086,7 +1371,6 @@ class SnippingToolGUI(QMainWindow):
         color = QColorDialog.getColor(self.scene.pen_color, self, "Choose Pen Color")
         if color.isValid():
             self.scene.set_color(color)
-            self.color_btn.setStyleSheet(f"background-color: {color.name()}; border-radius: 10px; min-width: 20px; max-width: 20px; min-height: 20px; max-height: 20px; margin: 5px;")
             self.update_tool_button_styles() 
 
     def undo_stroke(self): 
@@ -1233,8 +1517,12 @@ class SnippingToolGUI(QMainWindow):
         self.update_mode_button()
 
         if self.current_overlay:
-            self.current_overlay.close()
-            self.current_overlay.deleteLater()
+            try:
+                self.current_overlay.close()
+                self.current_overlay.deleteLater()
+            except RuntimeError:
+                pass
+            self.current_overlay = None
 
         if "Rectangle" in mode:
             self.current_overlay = RectangleSnipOverlay(self.screen_pixmap, self.current_delay_sec)
@@ -1259,10 +1547,21 @@ class SnippingToolGUI(QMainWindow):
             self.snip_toolbar.close()
             
         if image:
+            scale_factor = 10 
+            new_width = image.width() * scale_factor
+            new_height = image.height() * scale_factor
+            
+            high_res_image = image.scaled(
+                new_width, 
+                new_height, 
+                Qt.AspectRatioMode.IgnoreAspectRatio, 
+                Qt.TransformationMode.SmoothTransformation
+            )
+
             self.scene.clear()
-            self.scene.setSceneRect(0, 0, image.width(), image.height())
-            self.scene.addPixmap(image)
-            self.scene.set_base_pixmap(image)
+            self.scene.setSceneRect(0, 0, high_res_image.width(), high_res_image.height())
+            self.scene.addPixmap(high_res_image)
+            self.scene.set_base_pixmap(high_res_image)
             
             self.stacked_widget.setCurrentIndex(1)
             self.set_editing_tools_enabled(True)
@@ -1274,6 +1573,7 @@ class SnippingToolGUI(QMainWindow):
             window_geom.moveCenter(screen_geom.center())
             self.move(window_geom.topLeft())
             
+            from PyQt6.QtCore import QTimer
             QTimer.singleShot(10, lambda: self.view.fitInView(self.scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio))
             
         self.showNormal()
@@ -1294,6 +1594,7 @@ class SnippingToolGUI(QMainWindow):
         super().resizeEvent(event)
         if hasattr(self, 'view') and self.scene.items():
             self.view.fitInView(self.scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
+            self.update_canvas_cursor()
         if hasattr(self, 'shimmer'):
             self.shimmer.resize(self.view.size())
 

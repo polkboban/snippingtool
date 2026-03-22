@@ -105,11 +105,24 @@ class WindowSnipOverlay(QWidget):
 
     def paintEvent(self, event):
         painter = QPainter(self)
-        painter.fillRect(self.rect(), QColor(0, 0, 0, 70))
+        
+        from PyQt6.QtCore import QRectF
+        from PyQt6.QtGui import QPainterPath
+
+        overlay_path = QPainterPath()
+        overlay_path.addRect(QRectF(self.rect()))
+        
+        if self.logical_rect:
+            selection_path = QPainterPath()
+            selection_path.addRect(QRectF(self.logical_rect))
+            overlay_path = overlay_path.subtracted(selection_path)
+            
+        painter.fillPath(overlay_path, QColor(0, 0, 0, 70))
         
         if self.logical_rect:
             pen = QPen(QColor(255, 0, 0), 3, Qt.PenStyle.SolidLine)
             painter.setPen(pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawRect(self.logical_rect)
 
     def mousePressEvent(self, event):
@@ -119,7 +132,6 @@ class WindowSnipOverlay(QWidget):
     def capture_snip(self):
         self.hide()
         try:
-            # Huge fix here! Use the pre-grabbed pixmap so the toolbar isn't captured!
             if self.screen_pixmap:
                 screenshot = self.screen_pixmap.copy(self.logical_rect)
             else:

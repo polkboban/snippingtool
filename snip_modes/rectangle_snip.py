@@ -28,13 +28,26 @@ class RectangleSnipOverlay(QWidget):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.drawPixmap(0, 0, self.screen_pixmap)
-        painter.fillRect(self.rect(), QColor(0, 0, 0, 100))
 
+        from PyQt6.QtCore import QRectF
+        from PyQt6.QtGui import QPainterPath
+
+        overlay_path = QPainterPath()
+        overlay_path.addRect(QRectF(self.rect()))
+
+        rect = None
         if not self.begin.isNull() and not self.end.isNull():
+            rect = QRect(self.begin, self.end).normalized()
+            selection_path = QPainterPath()
+            selection_path.addRect(QRectF(rect))
+            overlay_path = overlay_path.subtracted(selection_path)
+
+        painter.fillPath(overlay_path, QColor(0, 0, 0, 100))
+
+        if rect:
             pen = QPen(QColor(255, 0, 0), 2)
             painter.setPen(pen)
             painter.setBrush(Qt.BrushStyle.NoBrush)
-            rect = QRect(self.begin, self.end).normalized()
             painter.drawRect(rect)
 
             width = rect.width()

@@ -30,9 +30,23 @@ class FreeformSnipOverlay(QWidget):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.fillRect(self.rect(), QColor(0, 0, 0, 100))
+        
+        from PyQt6.QtCore import QRectF
+        from PyQt6.QtGui import QPainterPath
+
+        overlay_path = QPainterPath()
+        overlay_path.addRect(QRectF(self.rect()))
+
+        if not self.path.isEmpty():
+            selection_path = QPainterPath(self.path)
+            selection_path.closeSubpath()
+            overlay_path = overlay_path.subtracted(selection_path)
+
+        painter.fillPath(overlay_path, QColor(0, 0, 0, 100))
+
         pen = QPen(QColor(0, 255, 0), 2)
         painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawPath(self.path)
 
     def mousePressEvent(self, event):
