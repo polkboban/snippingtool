@@ -402,7 +402,7 @@ class VideoPreviewDialog(QMainWindow):
         super().__init__(parent=parent)
         self.setWindowModality(Qt.WindowModality.ApplicationModal)
         self.setWindowTitle("Snipping Tool - Video Preview")
-        self.resize(1000, 300)
+        self.resize(1000, 600)
         
         self.video_path = video_path
         self.dark_mode = dark_mode
@@ -443,6 +443,10 @@ class VideoPreviewDialog(QMainWindow):
 
         self.video_label = QLabel()
         self.video_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        from PyQt6.QtWidgets import QSizePolicy
+        self.video_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.video_label.setMinimumSize(100, 100)
         
         shadow = QGraphicsDropShadowEffect()
         shadow.setBlurRadius(20)
@@ -623,7 +627,6 @@ class CaptureToggle(QWidget):
         self.is_video = False
         self.icon_color = "#ffffff" if dark_mode else "#000000"
         
-        # Modern Fluent UI Colors
         self.bg_color = "#323232" if dark_mode else "#e6e6e6"
         self.thumb_color = "#4a4a4a" if dark_mode else "#ffffff"
         thumb_border = "none" if dark_mode else "1px solid #d0d0d0"
@@ -631,13 +634,11 @@ class CaptureToggle(QWidget):
         self.setFixedSize(96, 36)
         self.setStyleSheet(f"background-color: {self.bg_color}; border-radius: 18px;")
 
-        # The sliding thumb background
         self.thumb = QWidget(self)
         self.thumb.setFixedSize(44, 32)
         self.thumb.setStyleSheet(f"background-color: {self.thumb_color}; border-radius: 16px; border: {thumb_border};")
         self.thumb.move(2, 2)
 
-        # Transparent overlay buttons
         self.photo_btn = QPushButton(self)
         self.photo_btn.setIcon(create_svg_icon("camera", self.icon_color))
         self.photo_btn.setFixedSize(44, 32)
@@ -1645,7 +1646,18 @@ QMenu::item:selected { background-color: #f0f0f0; }
 """
 
 if __name__ == "__main__":
+    import ctypes
+    myappid = 'polkboban.snippingtool.v1'
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+    except AttributeError:
+        pass
+
     app = QApplication(sys.argv)
+    
+    from PyQt6.QtGui import QIcon
+    app.setWindowIcon(QIcon("assets/app_icon.png"))
+    
     dark_mode = is_dark_mode()
     app.setStyleSheet(DARK_THEME_STYLESHEET if dark_mode else LIGHT_THEME_STYLESHEET)
     win = SnippingToolGUI(dark_mode=dark_mode)
