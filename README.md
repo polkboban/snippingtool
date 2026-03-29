@@ -2,6 +2,12 @@
 
 A feature-rich desktop screen capture application built with Python and PyQt6. This tool provides a modern user interface that replicates the core functionality of the native Windows Snipping Tool, complete with automatic dark and light theme support based on system preferences.
 
+## Download
+You can download the latest compiled executable for Windows here:
+[Download Snipping Tool v1.0.0](https://github.com/polkboban/snippingtool/releases/latest)
+
+*Note: Extract the .zip file and run SnippingTool.exe. No installation required!*
+
 ## Features
 
 * **Capture Modes:**
